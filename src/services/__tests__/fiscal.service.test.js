@@ -14,6 +14,51 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
+describe("fiscal.service.getSettings", () => {
+  it("nunca retorna a chave real, só um indicador e os últimos 4 caracteres", async () => {
+    fiscalSettingsRepository.get.mockResolvedValue({
+      id: 1,
+      gatewayProvider: "FOCUS_NFE",
+      gatewayApiKey: "abcdef123456",
+    });
+
+    const settings = await fiscalService.getSettings();
+
+    expect(settings.gatewayApiKey).toBeUndefined();
+    expect(settings.hasGatewayApiKey).toBe(true);
+    expect(settings.gatewayApiKeyPreview).toBe("••••3456");
+  });
+
+  it("indica ausência de chave sem quebrar quando não há uma configurada", async () => {
+    fiscalSettingsRepository.get.mockResolvedValue({ id: 1, gatewayApiKey: null });
+
+    const settings = await fiscalService.getSettings();
+
+    expect(settings.hasGatewayApiKey).toBe(false);
+    expect(settings.gatewayApiKeyPreview).toBeNull();
+  });
+});
+
+describe("fiscal.service.updateSettings", () => {
+  it("mantém a chave atual quando o campo chega vazio", async () => {
+    fiscalSettingsRepository.update.mockResolvedValue({ id: 1, gatewayApiKey: "chave-existente" });
+
+    await fiscalService.updateSettings({ companyName: "Salgaderia", gatewayApiKey: "" });
+
+    const updateArg = fiscalSettingsRepository.update.mock.calls[0][0];
+    expect(updateArg).not.toHaveProperty("gatewayApiKey");
+  });
+
+  it("sobrescreve a chave quando uma nova é enviada", async () => {
+    fiscalSettingsRepository.update.mockResolvedValue({ id: 1, gatewayApiKey: "nova-chave" });
+
+    await fiscalService.updateSettings({ gatewayApiKey: "nova-chave" });
+
+    const updateArg = fiscalSettingsRepository.update.mock.calls[0][0];
+    expect(updateArg.gatewayApiKey).toBe("nova-chave");
+  });
+});
+
 describe("fiscal.service.emitForOrder", () => {
   it("rejeita pedido inexistente", async () => {
     orderRepository.findById.mockResolvedValue(null);

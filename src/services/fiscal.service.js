@@ -2,24 +2,47 @@ import * as fiscalSettingsRepository from "../repositories/fiscalSettings.reposi
 import * as orderRepository from "../repositories/order.repository.js";
 import { getGatewayClient } from "../fiscal/gateway.js";
 
-export function getSettings() {
-  return fiscalSettingsRepository.get();
+function maskApiKey(key) {
+  if (!key) return null;
+  return key.length <= 4 ? "••••" : `••••${key.slice(-4)}`;
 }
 
-export function updateSettings(data) {
-  return fiscalSettingsRepository.update({
+function withMaskedKey(settings) {
+  const { gatewayApiKey, ...rest } = settings;
+  return {
+    ...rest,
+    hasGatewayApiKey: Boolean(gatewayApiKey),
+    gatewayApiKeyPreview: maskApiKey(gatewayApiKey),
+  };
+}
+
+export async function getSettings() {
+  const settings = await fiscalSettingsRepository.get();
+  return withMaskedKey(settings);
+}
+
+export async function updateSettings(data) {
+  const update = {
     companyName: data.companyName ?? null,
     cnpj: data.cnpj ?? null,
     icmsRate: data.icmsRate ?? 0,
     gatewayProvider: data.gatewayProvider ?? "NONE",
-    gatewayApiKey: data.gatewayApiKey ?? null,
     environment: data.environment ?? "SANDBOX",
     cbsRate: data.cbsRate ?? 0.9,
     ibsUfRate: data.ibsUfRate ?? 0.05,
     ibsMunRate: data.ibsMunRate ?? 0.05,
     ibsCbsSituacaoTributaria: data.ibsCbsSituacaoTributaria || "000",
     ibsCbsClassificacaoTributaria: data.ibsCbsClassificacaoTributaria || "000001",
-  });
+  };
+
+  // Só sobrescreve a chave se uma nova de verdade foi digitada — o campo chega vazio quando o
+  // usuário deixa em branco pra manter a chave atual (a real nunca volta pra tela).
+  if (data.gatewayApiKey) {
+    update.gatewayApiKey = data.gatewayApiKey;
+  }
+
+  const settings = await fiscalSettingsRepository.update(update);
+  return withMaskedKey(settings);
 }
 
 export async function emitForOrder(orderId) {
