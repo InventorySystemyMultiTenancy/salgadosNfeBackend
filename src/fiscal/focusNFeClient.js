@@ -77,7 +77,7 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     presenca_comprador: 1, // operação presencial
     modalidade_frete: 9, // sem frete
     local_destino: 1, // operação interna (mesmo estado)
-    cnpj_emitente: settings.cnpj,
+    cnpj_emitente: onlyDigits(settings.cnpj),
     // Município (código IBGE, tag cMunFGIBS) do fato gerador do IBS/CBS — a SEFAZ rejeitou como
     // "informado indevidamente" numa venda presencial padrão (mesmo estado do emitente), então só
     // envia quando explicitamente configurado (casos como prestação em município diferente).
@@ -114,6 +114,12 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
 
 function round2(value) {
   return Math.round(value * 100) / 100;
+}
+
+// CNPJ/CPF só devem ir com dígitos (sem pontos/barra/traço) — enviar formatado faz a SEFAZ não
+// reconhecer o emitente ("CNPJ Emitente não cadastrado"), mesmo que o CNPJ esteja correto.
+function onlyDigits(value) {
+  return value ? value.replace(/\D/g, "") : value;
 }
 
 function sum(items, field) {

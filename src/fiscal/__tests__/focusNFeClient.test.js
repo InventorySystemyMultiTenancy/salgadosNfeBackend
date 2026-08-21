@@ -85,6 +85,15 @@ describe("focusNFeClient.emitNFCe", () => {
     });
   });
 
+  it("remove pontuação do CNPJ antes de enviar (evita 'CNPJ Emitente não cadastrado')", async () => {
+    const post = vi.fn().mockResolvedValue({ data: { status: "autorizado" } });
+
+    await emitNFCe({ settings: { ...settings, cnpj: "12.345.678/0001-99" }, order }, { post });
+
+    const payload = post.mock.calls[0][1];
+    expect(payload.cnpj_emitente).toBe("12345678000199");
+  });
+
   it("omite ibs_cbs_municipio quando não configurado (venda presencial padrão)", async () => {
     const post = vi.fn().mockResolvedValue({ data: { status: "autorizado" } });
 
