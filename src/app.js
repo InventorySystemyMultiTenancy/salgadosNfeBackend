@@ -1,10 +1,11 @@
 import express from "express";
 import cors from "cors";
 import routes from "./routes/index.js";
+import { getFrontendUrl } from "./config.js";
 
 const app = express();
 
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173" }));
+app.use(cors({ origin: getFrontendUrl() }));
 app.use(express.json());
 
 app.get("/health", (req, res) => res.json({ status: "ok" }));

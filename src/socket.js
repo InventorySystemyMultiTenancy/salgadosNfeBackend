@@ -1,10 +1,11 @@
 import { Server } from "socket.io";
+import { getFrontendUrl } from "./config.js";
 
 let io = null;
 
 export function initSocket(httpServer) {
   io = new Server(httpServer, {
-    cors: { origin: process.env.FRONTEND_URL || "http://localhost:5173" },
+    cors: { origin: getFrontendUrl() },
   });
 
   io.on("connection", (socket) => {
