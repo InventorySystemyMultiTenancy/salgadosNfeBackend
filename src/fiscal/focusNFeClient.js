@@ -59,13 +59,33 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     ],
   };
 
-  const response = await httpClient.post(`${baseUrl}/v2/nfce?ref=${ref}`, payload, {
-    auth: { username: settings.gatewayApiKey, password: "" },
-  });
+  let response;
+  try {
+    response = await httpClient.post(`${baseUrl}/v2/nfce?ref=${ref}`, payload, {
+      auth: { username: settings.gatewayApiKey, password: "" },
+    });
+  } catch (error) {
+    throw new Error(describeFocusNFeError(error));
+  }
 
   return {
     status: response.data.status,
     fiscalKey: response.data.chave_nfe ?? null,
     message: response.data.mensagem_sefaz ?? null,
   };
+}
+
+// A Focus NFe retorna 201 tanto pra autorizado quanto pra erro_autorizacao (tratado no service).
+// Erros de HTTP (400/401/403/422) chegam aqui como rejeição do axios, com o motivo real no corpo.
+function describeFocusNFeError(error) {
+  const data = error.response?.data;
+  if (!data) {
+    return `Falha ao conectar com a Focus NFe: ${error.message}`;
+  }
+
+  const details = Array.isArray(data.erros)
+    ? data.erros.map((item) => `${item.campo ? `${item.campo}: ` : ""}${item.mensagem}`).join("; ")
+    : null;
+
+  return [data.mensagem, details].filter(Boolean).join(" — ") || JSON.stringify(data);
 }
