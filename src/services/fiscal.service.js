@@ -21,19 +21,25 @@ export async function getSettings() {
   return withMaskedKey(settings);
 }
 
+// Merge com o registro atual: campos ausentes do payload (undefined) mantêm o valor já salvo em
+// vez de serem resetados pro default. Uma requisição parcial não pode apagar o resto da config.
 export async function updateSettings(data) {
+  const existing = await fiscalSettingsRepository.get();
+
   const update = {
-    companyName: data.companyName ?? null,
-    cnpj: data.cnpj ?? null,
-    icmsRate: data.icmsRate ?? 0,
-    gatewayProvider: data.gatewayProvider ?? "NONE",
-    environment: data.environment ?? "SANDBOX",
-    cbsRate: data.cbsRate ?? 0.9,
-    ibsUfRate: data.ibsUfRate ?? 0.05,
-    ibsMunRate: data.ibsMunRate ?? 0.05,
-    ibsCbsSituacaoTributaria: data.ibsCbsSituacaoTributaria || "000",
-    ibsCbsClassificacaoTributaria: data.ibsCbsClassificacaoTributaria || "000001",
-    ibsCbsMunicipioCodigo: data.ibsCbsMunicipioCodigo || null,
+    companyName: data.companyName !== undefined ? data.companyName : existing.companyName,
+    cnpj: data.cnpj !== undefined ? data.cnpj : existing.cnpj,
+    icmsRate: data.icmsRate !== undefined ? data.icmsRate : existing.icmsRate,
+    gatewayProvider: data.gatewayProvider !== undefined ? data.gatewayProvider : existing.gatewayProvider,
+    environment: data.environment !== undefined ? data.environment : existing.environment,
+    cbsRate: data.cbsRate !== undefined ? data.cbsRate : existing.cbsRate,
+    ibsUfRate: data.ibsUfRate !== undefined ? data.ibsUfRate : existing.ibsUfRate,
+    ibsMunRate: data.ibsMunRate !== undefined ? data.ibsMunRate : existing.ibsMunRate,
+    ibsCbsSituacaoTributaria: data.ibsCbsSituacaoTributaria || existing.ibsCbsSituacaoTributaria,
+    ibsCbsClassificacaoTributaria:
+      data.ibsCbsClassificacaoTributaria || existing.ibsCbsClassificacaoTributaria,
+    ibsCbsMunicipioCodigo:
+      data.ibsCbsMunicipioCodigo !== undefined ? data.ibsCbsMunicipioCodigo : existing.ibsCbsMunicipioCodigo,
   };
 
   // Só sobrescreve a chave se uma nova de verdade foi digitada — o campo chega vazio quando o

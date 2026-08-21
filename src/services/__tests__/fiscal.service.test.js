@@ -40,8 +40,25 @@ describe("fiscal.service.getSettings", () => {
 });
 
 describe("fiscal.service.updateSettings", () => {
+  const existing = {
+    id: 1,
+    companyName: "Salgaderia da Esquina",
+    cnpj: "12345678000199",
+    icmsRate: 7,
+    gatewayProvider: "FOCUS_NFE",
+    gatewayApiKey: "chave-existente",
+    environment: "SANDBOX",
+    cbsRate: 0.9,
+    ibsUfRate: 0.05,
+    ibsMunRate: 0.05,
+    ibsCbsSituacaoTributaria: "000",
+    ibsCbsClassificacaoTributaria: "000001",
+    ibsCbsMunicipioCodigo: "3550308",
+  };
+
   it("mantém a chave atual quando o campo chega vazio", async () => {
-    fiscalSettingsRepository.update.mockResolvedValue({ id: 1, gatewayApiKey: "chave-existente" });
+    fiscalSettingsRepository.get.mockResolvedValue(existing);
+    fiscalSettingsRepository.update.mockResolvedValue(existing);
 
     await fiscalService.updateSettings({ companyName: "Salgaderia", gatewayApiKey: "" });
 
@@ -50,12 +67,30 @@ describe("fiscal.service.updateSettings", () => {
   });
 
   it("sobrescreve a chave quando uma nova é enviada", async () => {
-    fiscalSettingsRepository.update.mockResolvedValue({ id: 1, gatewayApiKey: "nova-chave" });
+    fiscalSettingsRepository.get.mockResolvedValue(existing);
+    fiscalSettingsRepository.update.mockResolvedValue({ ...existing, gatewayApiKey: "nova-chave" });
 
     await fiscalService.updateSettings({ gatewayApiKey: "nova-chave" });
 
     const updateArg = fiscalSettingsRepository.update.mock.calls[0][0];
     expect(updateArg.gatewayApiKey).toBe("nova-chave");
+  });
+
+  it("não apaga o resto da configuração quando a requisição só manda um campo", async () => {
+    fiscalSettingsRepository.get.mockResolvedValue(existing);
+    fiscalSettingsRepository.update.mockResolvedValue(existing);
+
+    await fiscalService.updateSettings({ ibsCbsMunicipioCodigo: "3304557" });
+
+    const updateArg = fiscalSettingsRepository.update.mock.calls[0][0];
+    expect(updateArg).toMatchObject({
+      companyName: "Salgaderia da Esquina",
+      cnpj: "12345678000199",
+      icmsRate: 7,
+      gatewayProvider: "FOCUS_NFE",
+      environment: "SANDBOX",
+      ibsCbsMunicipioCodigo: "3304557",
+    });
   });
 });
 
