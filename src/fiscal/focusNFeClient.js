@@ -25,11 +25,12 @@ const PAYMENT_CODE = {
  * o que fica fora do escopo desta fase.
  *
  * Grupo UB (IBS/CBS, Reforma Tributária EC 132/2023): obrigatório em toda NFC-e a partir de 2026,
- * mesmo em fase de teste. Os códigos/alíquotas padrão (situação "000", classificação "000001",
- * CBS 0,9%, IBS dividido em UF/Município) vêm de exemplos públicos da Focus NFe — a documentação
- * consultada não confirma se são os valores corretos para todo tipo de operação. Ficam
- * configuráveis em Fiscal > Configurações; CONFIRME com um contador antes de valer como emissão
- * real.
+ * mesmo em fase de teste — confirmado contra a API real (SEFAZ rejeita sem esses campos). Nomes de
+ * campo e tags XML conferidos em https://campos.focusnfe.com.br/nfe/NotaFiscalXML.html. Só o
+ * subconjunto essencial pra uma venda simples é enviado (sem diferimento, devolução, crédito
+ * presumido, ZFM ou monofásico — regimes especiais que não se aplicam a uma salgaderia comum).
+ * Alíquotas/códigos padrão ficam configuráveis em Fiscal > Configurações; CONFIRME com um contador
+ * antes de valer como emissão real.
  */
 export async function emitNFCe({ settings, order }, httpClient = axios) {
   const baseUrl = settings.environment === "PRODUCTION" ? PRODUCTION_BASE_URL : SANDBOX_BASE_URL;
@@ -77,6 +78,8 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     modalidade_frete: 9, // sem frete
     local_destino: 1, // operação interna (mesmo estado)
     cnpj_emitente: settings.cnpj,
+    // Município (código IBGE, 7 dígitos) do fato gerador do IBS/CBS — tag cMunFGIBS
+    ibs_cbs_municipio: settings.ibsCbsMunicipioCodigo,
     items,
     formas_pagamento: [
       {
@@ -88,7 +91,6 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     cbs_valor_total: round2(sum(items, "cbs_valor")),
     ibs_uf_valor_total: round2(sum(items, "ibs_uf_valor")),
     ibs_valor_total: round2(sum(items, "ibs_valor_total")),
-    ibs_cbs_is_valor_total: 0, // Imposto Seletivo — não aplicável a salgados/bebidas
     ibs_cbs_base_calculo: round2(sum(items, "ibs_cbs_base_calculo")),
   };
 

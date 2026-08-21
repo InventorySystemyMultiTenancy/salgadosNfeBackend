@@ -157,6 +157,8 @@ model FiscalSettings {
   ibsMunRate                    Decimal @default(0.05) @db.Decimal(5, 2) @map("ibs_mun_rate")
   ibsCbsSituacaoTributaria      String  @default("000") @map("ibs_cbs_situacao_tributaria")
   ibsCbsClassificacaoTributaria String  @default("000001") @map("ibs_cbs_classificacao_tributaria")
+  // Código IBGE do município (7 dígitos) do fato gerador do IBS/CBS — obrigatório (cMunFGIBS).
+  ibsCbsMunicipioCodigo         String? @map("ibs_cbs_municipio_codigo")
 
   updatedAt DateTime @updatedAt @map("updated_at")
 

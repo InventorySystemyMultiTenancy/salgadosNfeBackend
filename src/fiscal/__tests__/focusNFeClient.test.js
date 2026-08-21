@@ -11,6 +11,7 @@ const settings = {
   ibsMunRate: 0.05,
   ibsCbsSituacaoTributaria: "000",
   ibsCbsClassificacaoTributaria: "000001",
+  ibsCbsMunicipioCodigo: "3550308",
 };
 
 const order = {
@@ -52,6 +53,7 @@ describe("focusNFeClient.emitNFCe", () => {
       modalidade_frete: 9,
       local_destino: 1,
       natureza_operacao: expect.any(String),
+      ibs_cbs_municipio: "3550308",
     });
     expect(payload.data_emissao).toEqual(expect.any(String));
     expect(payload.items).toHaveLength(1);
@@ -79,7 +81,6 @@ describe("focusNFeClient.emitNFCe", () => {
       cbs_valor_total: 0.14,
       ibs_uf_valor_total: 0.01,
       ibs_valor_total: 0.02,
-      ibs_cbs_is_valor_total: 0,
       ibs_cbs_base_calculo: 15,
     });
   });

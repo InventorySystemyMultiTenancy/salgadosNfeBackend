@@ -33,6 +33,7 @@ export async function updateSettings(data) {
     ibsMunRate: data.ibsMunRate ?? 0.05,
     ibsCbsSituacaoTributaria: data.ibsCbsSituacaoTributaria || "000",
     ibsCbsClassificacaoTributaria: data.ibsCbsClassificacaoTributaria || "000001",
+    ibsCbsMunicipioCodigo: data.ibsCbsMunicipioCodigo || null,
   };
 
   // Só sobrescreve a chave se uma nova de verdade foi digitada — o campo chega vazio quando o
