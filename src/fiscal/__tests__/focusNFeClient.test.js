@@ -1,0 +1,80 @@
+import { describe, it, expect, vi } from "vitest";
+import { emitNFCe } from "../focusNFeClient.js";
+
+const settings = {
+  cnpj: "12345678000199",
+  gatewayApiKey: "fake-api-key",
+  environment: "SANDBOX",
+  icmsRate: 7,
+};
+
+const order = {
+  id: 42,
+  paymentMethod: "PIX",
+  totalAmount: "15.00",
+  items: [
+    {
+      productId: 1,
+      quantity: 2,
+      unitPrice: "7.50",
+      product: { name: "Coxinha", ncm: "19022000", cfop: "5102" },
+    },
+  ],
+};
+
+describe("focusNFeClient.emitNFCe", () => {
+  it("monta a requisição para o endpoint de homologação com Basic Auth e ref do pedido", async () => {
+    const post = vi.fn().mockResolvedValue({ data: { status: "autorizado", chave_nfe: "chave-123" } });
+
+    await emitNFCe({ settings, order }, { post });
+
+    expect(post).toHaveBeenCalledWith(
+      "https://homologacao.focusnfe.com.br/v2/nfce?ref=order-42",
+      expect.any(Object),
+      { auth: { username: "fake-api-key", password: "" } },
+    );
+  });
+
+  it("inclui os campos obrigatórios documentados pela Focus NFe", async () => {
+    const post = vi.fn().mockResolvedValue({ data: { status: "autorizado", chave_nfe: "chave-123" } });
+
+    await emitNFCe({ settings, order }, { post });
+
+    const payload = post.mock.calls[0][1];
+    expect(payload).toMatchObject({
+      cnpj_emitente: "12345678000199",
+      presenca_comprador: 1,
+      modalidade_frete: 9,
+      local_destino: 1,
+      natureza_operacao: expect.any(String),
+    });
+    expect(payload.data_emissao).toEqual(expect.any(String));
+    expect(payload.items).toHaveLength(1);
+    expect(payload.items[0]).toMatchObject({
+      ncm: "19022000",
+      cfop: "5102",
+      quantidade_comercial: 2,
+      valor_unitario_comercial: 7.5,
+      valor_bruto: 15,
+    });
+    expect(payload.formas_pagamento).toEqual([{ forma_pagamento: "17", valor_pagamento: 15 }]);
+  });
+
+  it("usa o endpoint de produção quando o ambiente é PRODUCTION", async () => {
+    const post = vi.fn().mockResolvedValue({ data: { status: "autorizado" } });
+
+    await emitNFCe({ settings: { ...settings, environment: "PRODUCTION" }, order }, { post });
+
+    expect(post.mock.calls[0][0]).toContain("https://api.focusnfe.com.br/v2/nfce");
+  });
+
+  it("repassa status e mensagem quando a SEFAZ rejeita a nota", async () => {
+    const post = vi.fn().mockResolvedValue({
+      data: { status: "erro_autorizacao", mensagem_sefaz: "CNPJ não habilitado" },
+    });
+
+    const result = await emitNFCe({ settings, order }, { post });
+
+    expect(result).toEqual({ status: "erro_autorizacao", fiscalKey: null, message: "CNPJ não habilitado" });
+  });
+});
