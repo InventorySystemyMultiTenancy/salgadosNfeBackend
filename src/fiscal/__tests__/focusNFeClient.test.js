@@ -6,6 +6,11 @@ const settings = {
   gatewayApiKey: "fake-api-key",
   environment: "SANDBOX",
   icmsRate: 7,
+  cbsRate: 0.9,
+  ibsUfRate: 0.05,
+  ibsMunRate: 0.05,
+  ibsCbsSituacaoTributaria: "000",
+  ibsCbsClassificacaoTributaria: "000001",
 };
 
 const order = {
@@ -58,8 +63,25 @@ describe("focusNFeClient.emitNFCe", () => {
       valor_bruto: 15,
       icms_origem: "0",
       icms_situacao_tributaria: "102",
+      ibs_cbs_situacao_tributaria: "000",
+      ibs_cbs_classificacao_tributaria: "000001",
+      ibs_cbs_base_calculo: 15,
+      cbs_aliquota: 0.9,
+      cbs_valor: 0.14,
+      ibs_uf_aliquota: 0.05,
+      ibs_uf_valor: 0.01,
+      ibs_mun_aliquota: 0.05,
+      ibs_mun_valor: 0.01,
+      ibs_valor_total: 0.02,
     });
     expect(payload.formas_pagamento).toEqual([{ forma_pagamento: "17", valor_pagamento: 15 }]);
+    expect(payload).toMatchObject({
+      cbs_valor_total: 0.14,
+      ibs_uf_valor_total: 0.01,
+      ibs_valor_total: 0.02,
+      ibs_cbs_is_valor_total: 0,
+      ibs_cbs_base_calculo: 15,
+    });
   });
 
   it("usa o endpoint de produção quando o ambiente é PRODUCTION", async () => {

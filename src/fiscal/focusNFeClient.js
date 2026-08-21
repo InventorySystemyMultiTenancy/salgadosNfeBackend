@@ -23,19 +23,25 @@ const PAYMENT_CODE = {
  * todos os itens, sem frete, venda presencial, unidade "UN". Isso cobre o caso comum de uma
  * salgaderia pequena; um regime tributário diferente exigiria parametrizar CST/CSOSN por produto,
  * o que fica fora do escopo desta fase.
+ *
+ * Grupo UB (IBS/CBS, Reforma Tributária EC 132/2023): obrigatório em toda NFC-e a partir de 2026,
+ * mesmo em fase de teste. Os códigos/alíquotas padrão (situação "000", classificação "000001",
+ * CBS 0,9%, IBS dividido em UF/Município) vêm de exemplos públicos da Focus NFe — a documentação
+ * consultada não confirma se são os valores corretos para todo tipo de operação. Ficam
+ * configuráveis em Fiscal > Configurações; CONFIRME com um contador antes de valer como emissão
+ * real.
  */
 export async function emitNFCe({ settings, order }, httpClient = axios) {
   const baseUrl = settings.environment === "PRODUCTION" ? PRODUCTION_BASE_URL : SANDBOX_BASE_URL;
   const ref = `order-${order.id}`;
 
-  const payload = {
-    natureza_operacao: "Venda ao consumidor",
-    data_emissao: new Date().toISOString(),
-    presenca_comprador: 1, // operação presencial
-    modalidade_frete: 9, // sem frete
-    local_destino: 1, // operação interna (mesmo estado)
-    cnpj_emitente: settings.cnpj,
-    items: order.items.map((item, index) => ({
+  const items = order.items.map((item, index) => {
+    const valorBruto = Number(item.unitPrice) * item.quantity;
+    const cbsValor = round2((valorBruto * Number(settings.cbsRate)) / 100);
+    const ibsUfValor = round2((valorBruto * Number(settings.ibsUfRate)) / 100);
+    const ibsMunValor = round2((valorBruto * Number(settings.ibsMunRate)) / 100);
+
+    return {
       numero_item: index + 1,
       codigo_produto: String(item.productId),
       descricao: item.product.name,
@@ -47,16 +53,43 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
       unidade_tributavel: "UN",
       quantidade_tributavel: item.quantity,
       valor_unitario_tributavel: Number(item.unitPrice),
-      valor_bruto: Number(item.unitPrice) * item.quantity,
+      valor_bruto: valorBruto,
       icms_origem: "0", // mercadoria nacional
       icms_situacao_tributaria: "102", // CSOSN — Simples Nacional, sem permissão de crédito
-    })),
+      // Grupo UB — IBS/CBS (Reforma Tributária)
+      ibs_cbs_situacao_tributaria: settings.ibsCbsSituacaoTributaria,
+      ibs_cbs_classificacao_tributaria: settings.ibsCbsClassificacaoTributaria,
+      ibs_cbs_base_calculo: valorBruto,
+      cbs_aliquota: Number(settings.cbsRate),
+      cbs_valor: cbsValor,
+      ibs_uf_aliquota: Number(settings.ibsUfRate),
+      ibs_uf_valor: ibsUfValor,
+      ibs_mun_aliquota: Number(settings.ibsMunRate),
+      ibs_mun_valor: ibsMunValor,
+      ibs_valor_total: round2(ibsUfValor + ibsMunValor),
+    };
+  });
+
+  const payload = {
+    natureza_operacao: "Venda ao consumidor",
+    data_emissao: new Date().toISOString(),
+    presenca_comprador: 1, // operação presencial
+    modalidade_frete: 9, // sem frete
+    local_destino: 1, // operação interna (mesmo estado)
+    cnpj_emitente: settings.cnpj,
+    items,
     formas_pagamento: [
       {
         forma_pagamento: PAYMENT_CODE[order.paymentMethod] ?? "99",
         valor_pagamento: Number(order.totalAmount),
       },
     ],
+    // Totais do Grupo UB no nível do documento
+    cbs_valor_total: round2(sum(items, "cbs_valor")),
+    ibs_uf_valor_total: round2(sum(items, "ibs_uf_valor")),
+    ibs_valor_total: round2(sum(items, "ibs_valor_total")),
+    ibs_cbs_is_valor_total: 0, // Imposto Seletivo — não aplicável a salgados/bebidas
+    ibs_cbs_base_calculo: round2(sum(items, "ibs_cbs_base_calculo")),
   };
 
   let response;
@@ -73,6 +106,14 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     fiscalKey: response.data.chave_nfe ?? null,
     message: response.data.mensagem_sefaz ?? null,
   };
+}
+
+function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function sum(items, field) {
+  return items.reduce((total, item) => total + item[field], 0);
 }
 
 // A Focus NFe retorna 201 tanto pra autorizado quanto pra erro_autorizacao (tratado no service).

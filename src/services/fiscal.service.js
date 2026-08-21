@@ -14,6 +14,11 @@ export function updateSettings(data) {
     gatewayProvider: data.gatewayProvider ?? "NONE",
     gatewayApiKey: data.gatewayApiKey ?? null,
     environment: data.environment ?? "SANDBOX",
+    cbsRate: data.cbsRate ?? 0.9,
+    ibsUfRate: data.ibsUfRate ?? 0.05,
+    ibsMunRate: data.ibsMunRate ?? 0.05,
+    ibsCbsSituacaoTributaria: data.ibsCbsSituacaoTributaria || "000",
+    ibsCbsClassificacaoTributaria: data.ibsCbsClassificacaoTributaria || "000001",
   });
 }
 
