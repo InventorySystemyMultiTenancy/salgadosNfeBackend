@@ -15,8 +15,8 @@ const PAYMENT_CODE = {
 /**
  * Integração com a Focus NFe (https://focusnfe.com.br). Montada a partir da documentação pública
  * da API (https://doc.focusnfe.com.br/reference/emitir_nfce) — POST /v2/nfce, autenticação Basic
- * com a API key como usuário. Não foi testada contra a API real: não há credenciais de sandbox
- * disponíveis neste projeto ainda.
+ * com a API key como usuário. Testada contra o ambiente de homologação real; nomes de campo
+ * conferidos com a doc oficial (ex: "codigo_ncm", não "ncm").
  *
  * Simplificação assumida (compatível com "cadastro simplificado" do escopo): emissor no regime
  * Simples Nacional, CSOSN 102 (tributada pelo Simples Nacional, sem permissão de crédito) em
@@ -39,7 +39,7 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
       numero_item: index + 1,
       codigo_produto: String(item.productId),
       descricao: item.product.name,
-      ncm: item.product.ncm || "00000000",
+      codigo_ncm: item.product.ncm || "00000000",
       cfop: item.product.cfop || "5102",
       unidade_comercial: "UN",
       quantidade_comercial: item.quantity,
@@ -48,8 +48,8 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
       quantidade_tributavel: item.quantity,
       valor_unitario_tributavel: Number(item.unitPrice),
       valor_bruto: Number(item.unitPrice) * item.quantity,
-      origem_icms: "0", // mercadoria nacional
-      situacao_tributaria: "102", // CSOSN — Simples Nacional, sem permissão de crédito
+      icms_origem: "0", // mercadoria nacional
+      icms_situacao_tributaria: "102", // CSOSN — Simples Nacional, sem permissão de crédito
     })),
     formas_pagamento: [
       {

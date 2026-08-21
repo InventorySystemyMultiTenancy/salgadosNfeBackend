@@ -51,11 +51,13 @@ describe("focusNFeClient.emitNFCe", () => {
     expect(payload.data_emissao).toEqual(expect.any(String));
     expect(payload.items).toHaveLength(1);
     expect(payload.items[0]).toMatchObject({
-      ncm: "19022000",
+      codigo_ncm: "19022000",
       cfop: "5102",
       quantidade_comercial: 2,
       valor_unitario_comercial: 7.5,
       valor_bruto: 15,
+      icms_origem: "0",
+      icms_situacao_tributaria: "102",
     });
     expect(payload.formas_pagamento).toEqual([{ forma_pagamento: "17", valor_pagamento: 15 }]);
   });
