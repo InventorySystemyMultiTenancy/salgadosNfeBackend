@@ -85,6 +85,15 @@ describe("focusNFeClient.emitNFCe", () => {
     });
   });
 
+  it("omite ibs_cbs_municipio quando não configurado (venda presencial padrão)", async () => {
+    const post = vi.fn().mockResolvedValue({ data: { status: "autorizado" } });
+
+    await emitNFCe({ settings: { ...settings, ibsCbsMunicipioCodigo: null }, order }, { post });
+
+    const payload = post.mock.calls[0][1];
+    expect(payload).not.toHaveProperty("ibs_cbs_municipio");
+  });
+
   it("usa o endpoint de produção quando o ambiente é PRODUCTION", async () => {
     const post = vi.fn().mockResolvedValue({ data: { status: "autorizado" } });
 

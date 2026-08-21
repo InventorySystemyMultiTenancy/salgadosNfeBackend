@@ -78,8 +78,10 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     modalidade_frete: 9, // sem frete
     local_destino: 1, // operação interna (mesmo estado)
     cnpj_emitente: settings.cnpj,
-    // Município (código IBGE, 7 dígitos) do fato gerador do IBS/CBS — tag cMunFGIBS
-    ibs_cbs_municipio: settings.ibsCbsMunicipioCodigo,
+    // Município (código IBGE, tag cMunFGIBS) do fato gerador do IBS/CBS — a SEFAZ rejeitou como
+    // "informado indevidamente" numa venda presencial padrão (mesmo estado do emitente), então só
+    // envia quando explicitamente configurado (casos como prestação em município diferente).
+    ...(settings.ibsCbsMunicipioCodigo ? { ibs_cbs_municipio: settings.ibsCbsMunicipioCodigo } : {}),
     items,
     formas_pagamento: [
       {
