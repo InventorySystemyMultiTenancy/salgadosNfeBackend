@@ -80,9 +80,9 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     cnpj_emitente: onlyDigits(settings.cnpj),
     // Destinatário — só enviado quando o pedido está vinculado a um cliente cadastrado (CPF ou
     // CNPJ). Sem isso a nota sai como "consumidor não identificado", mesmo tendo um cliente
-    // selecionado no PDV. CNPJ tem prioridade (cliente pessoa jurídica). Nomes de campo seguem o
-    // padrão "_destinatario" seguindo a doc pública, mas NÃO foi testado contra a API real ainda
-    // (diferente do restante deste payload) — confirme antes de considerar válido em produção.
+    // selecionado no PDV. CNPJ tem prioridade (cliente pessoa jurídica). Nomes de campo
+    // (cnpj_destinatario/cpf_destinatario/nome_destinatario) confirmados contra a doc pública em
+    // 2026-08-25 (campos.focusnfe.com.br), mas ainda não testados numa emissão real com cliente.
     ...(order.client?.cnpj
       ? { cnpj_destinatario: onlyDigits(order.client.cnpj), nome_destinatario: order.client.name }
       : order.client?.cpf
