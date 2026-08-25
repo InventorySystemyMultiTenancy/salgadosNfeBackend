@@ -166,14 +166,22 @@ model FiscalSettings {
   environment     FiscalEnvironment @default(SANDBOX)
 
   // Reforma Tributária (IBS/CBS) — Grupo UB, obrigatório em toda NFC-e a partir de 2026.
-  // O Ato Conjunto RFB/CGIBS Nº 1/2025 documenta IBS-UF de teste como 0,1% — mas, testado ao
-  // vivo contra a SEFAZ-SP homologação em 2026-08-25, ibs_uf_aliquota=0.1 faz a Focus/SEFAZ
-  // devolver "Rejeição: CNPJ Emitente não cadastrado" (mensagem enganosa, sem relação real com
-  // cadastro de CNPJ — é a validação da alíquota que falha de um jeito mal reportado). 0.9 (igual
-  // ao CBS) autorizou de verdade nesse mesmo teste. CONFIRME com seu contador/a Focus NFe antes
-  // de considerar isso válido para produção — pode ser específico da SEFAZ-SP ou ter mudado.
+  // Alíquotas de teste oficiais pra 2026 (Ato Conjunto RFB/CGIBS Nº 1/2025): CBS 0,9%, IBS 0,1%
+  // inteiro pra UF e 0% pro Município.
+  //
+  // GOTCHA investigado ao vivo em 2026-08-25 contra a SEFAZ-SP homologação, CNPJ
+  // 54.926.669/0001-38 (Focus NFe): com ibs_uf_aliquota=0.1 (valor oficial) a SEFAZ rejeita
+  // consistentemente com "Rejeição: CNPJ Emitente não cadastrado" — mensagem enganosa, o CNPJ
+  // em si está cadastrado certinho (confirmado isolando o payload campo a campo). Testar
+  // ibs_uf_aliquota=0.9 também rejeita, mas com "Alíquota do IBS da UF inválida" (ou seja, 0.9
+  // nem é um valor aceito — não use). Hipótese mais provável: esse CNPJ ainda não está
+  // habilitado pela SEFAZ/Focus especificamente pro grupo de testes da Reforma Tributária
+  // (cadastro separado do cadastro comum de NFC-e) — precisa confirmar com o suporte da Focus
+  // NFe. Um "autorizado" isolado que apareceu num teste manual veio com
+  // "contingencia_offline": true (SEFAZ fora do ar naquele instante, validação mais frouxa) —
+  // não é reprodutível, foi sorte de timing, não uma configuração válida.
   cbsRate                       Decimal @default(0.9) @db.Decimal(6, 4) @map("cbs_rate")
-  ibsUfRate                     Decimal @default(0.9) @db.Decimal(6, 4) @map("ibs_uf_rate")
+  ibsUfRate                     Decimal @default(0.1) @db.Decimal(6, 4) @map("ibs_uf_rate")
   ibsMunRate                    Decimal @default(0) @db.Decimal(6, 4) @map("ibs_mun_rate")
   ibsCbsSituacaoTributaria      String  @default("000") @map("ibs_cbs_situacao_tributaria")
   ibsCbsClassificacaoTributaria String  @default("000001") @map("ibs_cbs_classificacao_tributaria")
