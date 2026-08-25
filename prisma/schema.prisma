@@ -166,11 +166,14 @@ model FiscalSettings {
   environment     FiscalEnvironment @default(SANDBOX)
 
   // Reforma Tributária (IBS/CBS) — Grupo UB, obrigatório em toda NFC-e a partir de 2026.
-  // Alíquotas de teste oficiais pra 2026 (Ato Conjunto RFB/CGIBS Nº 1/2025): CBS 0,9%, IBS 0,1%
-  // inteiro pra UF e 0% pro Município — só a partir de 2027 o IBS passa a dividir 0,05%/0,05%.
-  // CONFIRME com seu contador/a Focus NFe antes de considerar isso válido para produção.
+  // O Ato Conjunto RFB/CGIBS Nº 1/2025 documenta IBS-UF de teste como 0,1% — mas, testado ao
+  // vivo contra a SEFAZ-SP homologação em 2026-08-25, ibs_uf_aliquota=0.1 faz a Focus/SEFAZ
+  // devolver "Rejeição: CNPJ Emitente não cadastrado" (mensagem enganosa, sem relação real com
+  // cadastro de CNPJ — é a validação da alíquota que falha de um jeito mal reportado). 0.9 (igual
+  // ao CBS) autorizou de verdade nesse mesmo teste. CONFIRME com seu contador/a Focus NFe antes
+  // de considerar isso válido para produção — pode ser específico da SEFAZ-SP ou ter mudado.
   cbsRate                       Decimal @default(0.9) @db.Decimal(6, 4) @map("cbs_rate")
-  ibsUfRate                     Decimal @default(0.1) @db.Decimal(6, 4) @map("ibs_uf_rate")
+  ibsUfRate                     Decimal @default(0.9) @db.Decimal(6, 4) @map("ibs_uf_rate")
   ibsMunRate                    Decimal @default(0) @db.Decimal(6, 4) @map("ibs_mun_rate")
   ibsCbsSituacaoTributaria      String  @default("000") @map("ibs_cbs_situacao_tributaria")
   ibsCbsClassificacaoTributaria String  @default("000001") @map("ibs_cbs_classificacao_tributaria")
