@@ -34,6 +34,7 @@ enum KitchenStatus {
 
 enum FiscalStatus {
   NOT_EMITTED
+  PENDING
   AUTHORIZED
   REJECTED
 }
@@ -42,6 +43,7 @@ enum GatewayProvider {
   NONE
   FOCUS_NFE
   PLUGNOTAS
+  NFEIO
 }
 
 enum FiscalEnvironment {
@@ -84,11 +86,22 @@ model Client {
   name           String
   phone          String?
   cpf            String?
+  cnpj           String?
   dueDay         Int?     @map("due_day")
   creditLimit    Decimal  @default(0) @db.Decimal(10, 2) @map("credit_limit")
   currentBalance Decimal  @default(0) @db.Decimal(10, 2) @map("current_balance")
   active         Boolean  @default(true)
   createdAt      DateTime @default(now()) @map("created_at")
+
+  // Endereço — opcional, mas exigido pela NFe.io (buyer.address) pra emitir nota fiscal em nome
+  // desse cliente. Sem esses campos preenchidos, a emissão via NFe.io falha com erro explícito.
+  addressStreet     String? @map("address_street")
+  addressNumber     String? @map("address_number")
+  addressDistrict   String? @map("address_district")
+  addressCity       String? @map("address_city")
+  addressCityCode   String? @map("address_city_code") // código IBGE do município (7 dígitos)
+  addressState      String? @map("address_state")
+  addressPostalCode String? @map("address_postal_code")
 
   orders   Order[]
   payments ClientPayment[]
@@ -147,6 +160,9 @@ model FiscalSettings {
   icmsRate        Decimal           @default(0) @db.Decimal(5, 2) @map("icms_rate")
   gatewayProvider GatewayProvider   @default(NONE) @map("gateway_provider")
   gatewayApiKey   String?           @map("gateway_api_key")
+  // Id da empresa no gateway — só a NFe.io exige isso hoje (Focus NFe/PlugNotas identificam a
+  // empresa pelo CNPJ + api key). Fica genérico pra não amarrar o schema a um provedor específico.
+  gatewayCompanyId String?          @map("gateway_company_id")
   environment     FiscalEnvironment @default(SANDBOX)
 
   // Reforma Tributária (IBS/CBS) — Grupo UB, obrigatório em toda NFC-e a partir de 2026.

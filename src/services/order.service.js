@@ -5,8 +5,8 @@ import * as clientRepository from "../repositories/client.repository.js";
 const ALL_PAYMENT_METHODS = ["CASH", "DEBIT", "CREDIT", "PIX", "TAB"];
 const KITCHEN_STATUSES = ["PENDING", "PREPARING", "READY"];
 
-export function listOrders() {
-  return orderRepository.findAll();
+export function listOrders({ clientId } = {}) {
+  return orderRepository.findAll({ clientId });
 }
 
 export function getOrder(id) {
@@ -99,11 +99,18 @@ export async function createOrder({ sellerId, paymentMethod, clientId, items }) 
     }
 
     paymentStatus = "PENDING";
+  } else if (clientId) {
+    // Venda à vista também pode ser vinculada a um cliente cadastrado (CPF/CNPJ) — sem checagem
+    // de limite/saldo, só pra identificar o comprador na nota fiscal.
+    const client = await clientRepository.findById(Number(clientId));
+    if (!client || !client.active) {
+      throw new Error("Cliente não encontrado ou inativo.");
+    }
   }
 
   return orderRepository.createWithItems({
     sellerId,
-    clientId: paymentMethod === "TAB" ? Number(clientId) : null,
+    clientId: clientId ? Number(clientId) : null,
     paymentMethod,
     paymentStatus,
     items: resolvedItems,

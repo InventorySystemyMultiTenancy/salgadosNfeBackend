@@ -3,7 +3,7 @@ import * as fiscalService from "../services/fiscal.service.js";
 import { getIO } from "../socket.js";
 
 export async function list(req, res) {
-  const orders = await orderService.listOrders();
+  const orders = await orderService.listOrders({ clientId: req.query.clientId });
   return res.json(orders);
 }
 

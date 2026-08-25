@@ -118,6 +118,6 @@ describe("focusNFeClient.emitNFCe", () => {
 
     const result = await emitNFCe({ settings, order }, { post });
 
-    expect(result).toEqual({ status: "erro_autorizacao", fiscalKey: null, message: "CNPJ não habilitado" });
+    expect(result).toEqual({ fiscalStatus: "REJECTED", fiscalKey: null, message: "CNPJ não habilitado" });
   });
 });

@@ -1,8 +1,13 @@
 import { prisma } from "../prismaClient.js";
 
-export function findAll() {
+export function findAll({ clientId } = {}) {
   return prisma.order.findMany({
-    include: { items: true, seller: { select: { id: true, name: true } } },
+    where: clientId ? { clientId: Number(clientId) } : undefined,
+    include: {
+      items: true,
+      seller: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true, cpf: true, cnpj: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
@@ -10,7 +15,11 @@ export function findAll() {
 export function findById(id) {
   return prisma.order.findUnique({
     where: { id },
-    include: { items: { include: { product: true } }, seller: { select: { id: true, name: true } } },
+    include: {
+      items: { include: { product: true } },
+      seller: { select: { id: true, name: true } },
+      client: true,
+    },
   });
 }
 
@@ -73,7 +82,7 @@ export function createWithItems({ sellerId, clientId, paymentMethod, paymentStat
       });
     }
 
-    if (clientId) {
+    if (clientId && paymentMethod === "TAB") {
       await tx.client.update({
         where: { id: clientId },
         data: { currentBalance: { increment: totalAmount } },

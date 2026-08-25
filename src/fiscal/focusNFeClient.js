@@ -78,6 +78,16 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
     modalidade_frete: 9, // sem frete
     local_destino: 1, // operação interna (mesmo estado)
     cnpj_emitente: onlyDigits(settings.cnpj),
+    // Destinatário — só enviado quando o pedido está vinculado a um cliente cadastrado (CPF ou
+    // CNPJ). Sem isso a nota sai como "consumidor não identificado", mesmo tendo um cliente
+    // selecionado no PDV. CNPJ tem prioridade (cliente pessoa jurídica). Nomes de campo seguem o
+    // padrão "_destinatario" seguindo a doc pública, mas NÃO foi testado contra a API real ainda
+    // (diferente do restante deste payload) — confirme antes de considerar válido em produção.
+    ...(order.client?.cnpj
+      ? { cnpj_destinatario: onlyDigits(order.client.cnpj), nome_destinatario: order.client.name }
+      : order.client?.cpf
+        ? { cpf_destinatario: onlyDigits(order.client.cpf), nome_destinatario: order.client.name }
+        : {}),
     // Município (código IBGE, tag cMunFGIBS) do fato gerador do IBS/CBS — a SEFAZ rejeitou como
     // "informado indevidamente" numa venda presencial padrão (mesmo estado do emitente), então só
     // envia quando explicitamente configurado (casos como prestação em município diferente).
@@ -106,7 +116,7 @@ export async function emitNFCe({ settings, order }, httpClient = axios) {
   }
 
   return {
-    status: response.data.status,
+    fiscalStatus: response.data.status === "autorizado" ? "AUTHORIZED" : "REJECTED",
     fiscalKey: response.data.chave_nfe ?? null,
     message: response.data.mensagem_sefaz ?? null,
   };

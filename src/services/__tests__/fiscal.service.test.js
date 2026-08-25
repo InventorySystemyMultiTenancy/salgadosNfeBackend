@@ -114,7 +114,7 @@ describe("fiscal.service.emitForOrder", () => {
   it("marca AUTHORIZED quando o gateway autoriza a emissão", async () => {
     orderRepository.findById.mockResolvedValue(order);
     fiscalSettingsRepository.get.mockResolvedValue({ gatewayProvider: "FOCUS_NFE" });
-    const emitNFCe = vi.fn().mockResolvedValue({ status: "autorizado", fiscalKey: "abc123" });
+    const emitNFCe = vi.fn().mockResolvedValue({ fiscalStatus: "AUTHORIZED", fiscalKey: "abc123" });
     getGatewayClient.mockReturnValue({ emitNFCe });
 
     await fiscalService.emitForOrder(1);
@@ -130,7 +130,7 @@ describe("fiscal.service.emitForOrder", () => {
     orderRepository.findById.mockResolvedValue(order);
     fiscalSettingsRepository.get.mockResolvedValue({ gatewayProvider: "FOCUS_NFE" });
     const emitNFCe = vi.fn().mockResolvedValue({
-      status: "erro_autorizacao",
+      fiscalStatus: "REJECTED",
       fiscalKey: null,
       message: "Rejeição: CNPJ do emitente não habilitado para NFC-e",
     });
@@ -142,6 +142,25 @@ describe("fiscal.service.emitForOrder", () => {
       fiscalStatus: "REJECTED",
       fiscalKey: null,
       fiscalError: "Rejeição: CNPJ do emitente não habilitado para NFC-e",
+    });
+  });
+
+  it("marca PENDING quando o gateway processa de forma assíncrona (ex: NFe.io)", async () => {
+    orderRepository.findById.mockResolvedValue(order);
+    fiscalSettingsRepository.get.mockResolvedValue({ gatewayProvider: "NFEIO" });
+    const emitNFCe = vi.fn().mockResolvedValue({
+      fiscalStatus: "PENDING",
+      fiscalKey: null,
+      message: "Nota enviada para emissão na NFe.io (id: abc).",
+    });
+    getGatewayClient.mockReturnValue({ emitNFCe });
+
+    await fiscalService.emitForOrder(1);
+
+    expect(orderRepository.updateFiscalResult).toHaveBeenCalledWith(1, {
+      fiscalStatus: "PENDING",
+      fiscalKey: null,
+      fiscalError: "Nota enviada para emissão na NFe.io (id: abc).",
     });
   });
 

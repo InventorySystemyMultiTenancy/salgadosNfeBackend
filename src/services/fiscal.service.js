@@ -31,6 +31,8 @@ export async function updateSettings(data) {
     cnpj: data.cnpj !== undefined ? data.cnpj : existing.cnpj,
     icmsRate: data.icmsRate !== undefined ? data.icmsRate : existing.icmsRate,
     gatewayProvider: data.gatewayProvider !== undefined ? data.gatewayProvider : existing.gatewayProvider,
+    gatewayCompanyId:
+      data.gatewayCompanyId !== undefined ? data.gatewayCompanyId : existing.gatewayCompanyId,
     environment: data.environment !== undefined ? data.environment : existing.environment,
     cbsRate: data.cbsRate !== undefined ? data.cbsRate : existing.cbsRate,
     ibsUfRate: data.ibsUfRate !== undefined ? data.ibsUfRate : existing.ibsUfRate,
@@ -62,12 +64,14 @@ export async function emitForOrder(orderId) {
   const client = getGatewayClient(settings.gatewayProvider);
 
   try {
+    // Cada client normaliza o vocabulário de status do seu provedor pro enum FiscalStatus daqui —
+    // ex: a Focus NFe usa "autorizado"/"erro_autorizacao" em português, a NFe.io processa de forma
+    // assíncrona e pode devolver PENDING. O service não conhece nada disso, só consome o resultado.
     const result = await client.emitNFCe({ settings, order });
-    const authorized = result.status === "autorizado";
     return orderRepository.updateFiscalResult(order.id, {
-      fiscalStatus: authorized ? "AUTHORIZED" : "REJECTED",
-      fiscalKey: authorized ? result.fiscalKey : null,
-      fiscalError: authorized ? null : result.message ?? "Emissão rejeitada pela SEFAZ.",
+      fiscalStatus: result.fiscalStatus,
+      fiscalKey: result.fiscalStatus === "AUTHORIZED" ? result.fiscalKey : null,
+      fiscalError: result.fiscalStatus === "AUTHORIZED" ? null : result.message ?? "Emissão rejeitada pela SEFAZ.",
     });
   } catch (error) {
     await orderRepository.updateFiscalResult(order.id, {

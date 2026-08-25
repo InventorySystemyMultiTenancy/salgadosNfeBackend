@@ -18,8 +18,16 @@ export function createClient(data) {
     name: data.name,
     phone: data.phone,
     cpf: data.cpf ?? null,
+    cnpj: data.cnpj ?? null,
     dueDay: data.dueDay ?? null,
     creditLimit: data.creditLimit ?? 0,
+    addressStreet: data.addressStreet ?? null,
+    addressNumber: data.addressNumber ?? null,
+    addressDistrict: data.addressDistrict ?? null,
+    addressCity: data.addressCity ?? null,
+    addressCityCode: data.addressCityCode ?? null,
+    addressState: data.addressState ?? null,
+    addressPostalCode: data.addressPostalCode ?? null,
   });
 }
 
@@ -36,8 +44,17 @@ export async function updateClient(id, data) {
     name: data.name ?? existing.name,
     phone: data.phone ?? existing.phone,
     cpf: data.cpf ?? existing.cpf,
+    cnpj: data.cnpj ?? existing.cnpj,
     dueDay: data.dueDay ?? existing.dueDay,
     creditLimit: data.creditLimit ?? existing.creditLimit,
+    addressStreet: data.addressStreet !== undefined ? data.addressStreet : existing.addressStreet,
+    addressNumber: data.addressNumber !== undefined ? data.addressNumber : existing.addressNumber,
+    addressDistrict: data.addressDistrict !== undefined ? data.addressDistrict : existing.addressDistrict,
+    addressCity: data.addressCity !== undefined ? data.addressCity : existing.addressCity,
+    addressCityCode: data.addressCityCode !== undefined ? data.addressCityCode : existing.addressCityCode,
+    addressState: data.addressState !== undefined ? data.addressState : existing.addressState,
+    addressPostalCode:
+      data.addressPostalCode !== undefined ? data.addressPostalCode : existing.addressPostalCode,
   });
 }
 
