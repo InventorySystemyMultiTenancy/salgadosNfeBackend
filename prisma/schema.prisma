@@ -39,6 +39,11 @@ enum FiscalStatus {
   REJECTED
 }
 
+enum FiscalType {
+  NFCE
+  NFE
+}
+
 enum GatewayProvider {
   NONE
   FOCUS_NFE
@@ -87,6 +92,10 @@ model Client {
   phone          String?
   cpf            String?
   cnpj           String?
+  // Inscrição Estadual — só preencher se o cliente for contribuinte de ICMS (ex: revendedor). Sem
+  // isso, a SEFAZ rejeita NF-e pra clientes PJ que têm IE ativa no cadastro dela mesmo se a gente
+  // mandar "não contribuinte" (rejeição 232, testado ao vivo em 2026-08-26).
+  stateRegistration String? @map("state_registration")
   dueDay         Int?     @map("due_day")
   creditLimit    Decimal  @default(0) @db.Decimal(10, 2) @map("credit_limit")
   currentBalance Decimal  @default(0) @db.Decimal(10, 2) @map("current_balance")
@@ -129,8 +138,14 @@ model Order {
   paymentStatus PaymentStatus @default(PAID) @map("payment_status")
   kitchenStatus KitchenStatus @default(PENDING) @map("kitchen_status")
   fiscalStatus  FiscalStatus  @default(NOT_EMITTED) @map("fiscal_status")
+  fiscalType    FiscalType?   @map("fiscal_type")
   fiscalKey     String?       @map("fiscal_key")
   fiscalError   String?       @map("fiscal_error")
+  // Links pro documento no servidor da Focus NFe (DANFE em HTML e o XML da nota) — só preenchidos
+  // quando AUTHORIZED. Precisam ser resolvidos com o host correto (homologação/produção) no
+  // momento da emissão, já que a resposta da Focus só devolve o caminho relativo.
+  fiscalDanfeUrl String?      @map("fiscal_danfe_url")
+  fiscalXmlUrl   String?      @map("fiscal_xml_url")
   createdAt     DateTime      @default(now()) @map("created_at")
 
   seller User    @relation(fields: [sellerId], references: [id])

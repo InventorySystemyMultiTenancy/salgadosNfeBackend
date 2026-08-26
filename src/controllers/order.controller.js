@@ -58,3 +58,12 @@ export async function emitFiscal(req, res) {
     return res.status(400).json({ error: error.message });
   }
 }
+
+export async function emitFiscalNFe(req, res) {
+  try {
+    const order = await fiscalService.emitNFeForOrder(req.params.id);
+    return res.json(order);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+}

@@ -54,7 +54,18 @@ export async function updateSettings(data) {
   return withMaskedKey(settings);
 }
 
-export async function emitForOrder(orderId) {
+export function emitForOrder(orderId) {
+  return emitDocumentForOrder(orderId, "emitNFCe", "NFCE");
+}
+
+// NF-e (modelo 55) em vez de NFC-e (modelo 65) — existe porque o credenciamento na SEFAZ pra cada
+// modelo é separado, e uma empresa pode ter um liberado sem o outro (ver fiscal/focusNFeClient.js).
+// Só o gateway Focus NFe implementa isso hoje; NFe.io/PlugNotas lançam erro claro se escolhidos.
+export function emitNFeForOrder(orderId) {
+  return emitDocumentForOrder(orderId, "emitNFe", "NFE");
+}
+
+async function emitDocumentForOrder(orderId, method, fiscalType) {
   const order = await orderRepository.findById(Number(orderId));
   if (!order) {
     throw new Error("Pedido não encontrado.");
@@ -62,22 +73,31 @@ export async function emitForOrder(orderId) {
 
   const settings = await fiscalSettingsRepository.get();
   const client = getGatewayClient(settings.gatewayProvider);
+  if (typeof client[method] !== "function") {
+    throw new Error(`O gateway configurado (${settings.gatewayProvider}) não suporta esse tipo de emissão.`);
+  }
 
   try {
     // Cada client normaliza o vocabulário de status do seu provedor pro enum FiscalStatus daqui —
     // ex: a Focus NFe usa "autorizado"/"erro_autorizacao" em português, a NFe.io processa de forma
     // assíncrona e pode devolver PENDING. O service não conhece nada disso, só consome o resultado.
-    const result = await client.emitNFCe({ settings, order });
+    const result = await client[method]({ settings, order });
     return orderRepository.updateFiscalResult(order.id, {
       fiscalStatus: result.fiscalStatus,
+      fiscalType,
       fiscalKey: result.fiscalStatus === "AUTHORIZED" ? result.fiscalKey : null,
       fiscalError: result.fiscalStatus === "AUTHORIZED" ? null : result.message ?? "Emissão rejeitada pela SEFAZ.",
+      fiscalDanfeUrl: result.fiscalStatus === "AUTHORIZED" ? result.danfeUrl ?? null : null,
+      fiscalXmlUrl: result.fiscalStatus === "AUTHORIZED" ? result.xmlUrl ?? null : null,
     });
   } catch (error) {
     await orderRepository.updateFiscalResult(order.id, {
       fiscalStatus: "REJECTED",
+      fiscalType,
       fiscalKey: null,
       fiscalError: error.message,
+      fiscalDanfeUrl: null,
+      fiscalXmlUrl: null,
     });
     throw error;
   }

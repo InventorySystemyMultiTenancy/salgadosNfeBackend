@@ -39,10 +39,13 @@ export function updateKitchenStatus(id, kitchenStatus) {
   });
 }
 
-export function updateFiscalResult(id, { fiscalStatus, fiscalKey, fiscalError }) {
+export function updateFiscalResult(
+  id,
+  { fiscalStatus, fiscalType, fiscalKey, fiscalError, fiscalDanfeUrl, fiscalXmlUrl },
+) {
   return prisma.order.update({
     where: { id },
-    data: { fiscalStatus, fiscalKey, fiscalError },
+    data: { fiscalStatus, fiscalType, fiscalKey, fiscalError, fiscalDanfeUrl, fiscalXmlUrl },
   });
 }
 

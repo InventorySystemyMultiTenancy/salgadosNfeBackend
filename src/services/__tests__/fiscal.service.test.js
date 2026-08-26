@@ -121,8 +121,11 @@ describe("fiscal.service.emitForOrder", () => {
 
     expect(orderRepository.updateFiscalResult).toHaveBeenCalledWith(1, {
       fiscalStatus: "AUTHORIZED",
+      fiscalType: "NFCE",
       fiscalKey: "abc123",
       fiscalError: null,
+      fiscalDanfeUrl: null,
+      fiscalXmlUrl: null,
     });
   });
 
@@ -140,8 +143,11 @@ describe("fiscal.service.emitForOrder", () => {
 
     expect(orderRepository.updateFiscalResult).toHaveBeenCalledWith(1, {
       fiscalStatus: "REJECTED",
+      fiscalType: "NFCE",
       fiscalKey: null,
       fiscalError: "Rejeição: CNPJ do emitente não habilitado para NFC-e",
+      fiscalDanfeUrl: null,
+      fiscalXmlUrl: null,
     });
   });
 
@@ -159,8 +165,11 @@ describe("fiscal.service.emitForOrder", () => {
 
     expect(orderRepository.updateFiscalResult).toHaveBeenCalledWith(1, {
       fiscalStatus: "PENDING",
+      fiscalType: "NFCE",
       fiscalKey: null,
       fiscalError: "Nota enviada para emissão na NFe.io (id: abc).",
+      fiscalDanfeUrl: null,
+      fiscalXmlUrl: null,
     });
   });
 
@@ -174,8 +183,11 @@ describe("fiscal.service.emitForOrder", () => {
 
     expect(orderRepository.updateFiscalResult).toHaveBeenCalledWith(1, {
       fiscalStatus: "REJECTED",
+      fiscalType: "NFCE",
       fiscalKey: null,
       fiscalError: "Falha de conexão com a Focus NFe",
+      fiscalDanfeUrl: null,
+      fiscalXmlUrl: null,
     });
   });
 });

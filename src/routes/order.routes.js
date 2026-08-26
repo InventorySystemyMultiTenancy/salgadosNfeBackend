@@ -10,6 +10,7 @@ router.get("/kitchen-queue", requireRole("ADMIN", "KITCHEN"), orderController.ki
 router.put("/:id/kitchen-status", requireRole("ADMIN", "KITCHEN"), orderController.updateKitchenStatus);
 router.get("/audit/stock", requireRole("ADMIN"), orderController.stockAudit);
 router.post("/:id/emit-fiscal", requireRole("ADMIN"), orderController.emitFiscal);
+router.post("/:id/emit-fiscal-nfe", requireRole("ADMIN"), orderController.emitFiscalNFe);
 
 router.get("/", requireRole("ADMIN"), orderController.list);
 router.get("/:id", requireRole("ADMIN", "SELLER"), orderController.getOne);
