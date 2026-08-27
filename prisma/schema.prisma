@@ -78,6 +78,7 @@ model Product {
   ncm           String?
   cfop          String?
   minStockAlert Int?     @map("min_stock_alert")
+  imageUrl      String?  @map("image_url")
   active        Boolean  @default(true)
   createdAt     DateTime @default(now()) @map("created_at")
 

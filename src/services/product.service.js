@@ -37,6 +37,14 @@ export async function updateProduct(id, data) {
   });
 }
 
+export async function setProductImage(id, imageUrl) {
+  const existing = await productRepository.findById(Number(id));
+  if (!existing) {
+    throw new Error("Produto não encontrado.");
+  }
+  return productRepository.update(Number(id), { imageUrl });
+}
+
 export async function deactivateProduct(id) {
   const existing = await productRepository.findById(Number(id));
   if (!existing) {
