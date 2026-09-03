@@ -4,7 +4,7 @@ export function findAll({ clientId } = {}) {
   return prisma.order.findMany({
     where: clientId ? { clientId: Number(clientId) } : undefined,
     include: {
-      items: true,
+      items: { include: { product: { select: { id: true, name: true } } } },
       seller: { select: { id: true, name: true } },
       client: { select: { id: true, name: true, cpf: true, cnpj: true } },
     },
@@ -75,7 +75,11 @@ export function createWithItems({ sellerId, clientId, paymentMethod, paymentStat
           })),
         },
       },
-      include: { items: { include: { product: true } }, seller: { select: { id: true, name: true } } },
+      include: {
+        items: { include: { product: true } },
+        seller: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true, cpf: true, cnpj: true } },
+      },
     });
 
     for (const item of items) {

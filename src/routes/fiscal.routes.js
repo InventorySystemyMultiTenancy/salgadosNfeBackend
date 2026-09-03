@@ -4,6 +4,8 @@ import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
+router.get("/settings/public", verifyToken, fiscalController.getPublicSettings);
+
 router.use(verifyToken, requireRole("ADMIN"));
 
 router.get("/settings", fiscalController.getSettings);

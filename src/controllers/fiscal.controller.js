@@ -5,6 +5,11 @@ export async function getSettings(req, res) {
   return res.json(settings);
 }
 
+export async function getPublicSettings(req, res) {
+  const settings = await fiscalService.getPublicSettings();
+  return res.json(settings);
+}
+
 export async function updateSettings(req, res) {
   try {
     const settings = await fiscalService.updateSettings(req.body);

@@ -21,6 +21,13 @@ export async function getSettings() {
   return withMaskedKey(settings);
 }
 
+// Só o nome/CNPJ, pro cabeçalho do cupom não fiscal impresso no PDV — não expõe chave de gateway
+// nem alíquotas, então qualquer perfil autenticado (não só ADMIN) pode chamar.
+export async function getPublicSettings() {
+  const settings = await fiscalSettingsRepository.get();
+  return { companyName: settings.companyName, cnpj: settings.cnpj };
+}
+
 // Merge com o registro atual: campos ausentes do payload (undefined) mantêm o valor já salvo em
 // vez de serem resetados pro default. Uma requisição parcial não pode apagar o resto da config.
 export async function updateSettings(data) {
