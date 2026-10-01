@@ -22,6 +22,7 @@ export async function create(req, res) {
       paymentMethod: req.body.paymentMethod,
       clientId: req.body.clientId,
       items: req.body.items,
+      terminalPaymentId: req.body.terminalPaymentId,
     });
     getIO().to("kitchen").emit("order:created", order);
     return res.status(201).json(order);

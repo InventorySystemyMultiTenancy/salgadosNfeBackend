@@ -58,7 +58,7 @@ export function findAllItemsWithSellerAndProduct() {
   });
 }
 
-export function createWithItems({ sellerId, clientId, paymentMethod, paymentStatus, items, totalAmount }) {
+export function createWithItems({ sellerId, clientId, paymentMethod, paymentStatus, items, totalAmount, terminalPaymentId }) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.create({
       data: {
@@ -81,6 +81,18 @@ export function createWithItems({ sellerId, clientId, paymentMethod, paymentStat
         client: { select: { id: true, name: true, cpf: true, cnpj: true } },
       },
     });
+
+    // Vincula a cobrança da maquininha dentro da mesma transação: se outra venda já pegou essa
+    // cobrança no meio tempo, o updateMany não acha nada e a venda inteira é desfeita.
+    if (terminalPaymentId) {
+      const { count } = await tx.terminalPayment.updateMany({
+        where: { id: terminalPaymentId, orderId: null, status: "APPROVED" },
+        data: { orderId: order.id },
+      });
+      if (count === 0) {
+        throw new Error("Esta cobrança da maquininha já foi usada em outra venda.");
+      }
+    }
 
     for (const item of items) {
       await tx.product.update({

@@ -3,8 +3,10 @@ import * as orderService from "../order.service.js";
 import * as orderRepository from "../../repositories/order.repository.js";
 import * as productRepository from "../../repositories/product.repository.js";
 import * as clientRepository from "../../repositories/client.repository.js";
+import * as terminalPaymentRepository from "../../repositories/terminalPayment.repository.js";
 
 vi.mock("../../repositories/order.repository.js");
+vi.mock("../../repositories/terminalPayment.repository.js");
 vi.mock("../../repositories/product.repository.js");
 vi.mock("../../repositories/client.repository.js");
 
@@ -115,6 +117,53 @@ describe("order.service.createOrder", () => {
 
     expect(orderRepository.createWithItems).toHaveBeenCalledWith(
       expect.objectContaining({ paymentStatus: "PENDING", clientId: 5 }),
+    );
+  });
+});
+
+describe("order.service.createOrder com cobrança da maquininha", () => {
+  const approved = { id: 7, status: "APPROVED", orderId: null, amount: "15.00", paymentType: "credit_card" };
+  const input = {
+    sellerId: 1,
+    paymentMethod: "DEBIT",
+    terminalPaymentId: 7,
+    items: [{ productId: 1, quantity: 2 }],
+  };
+
+  beforeEach(() => {
+    productRepository.findById.mockResolvedValue(product);
+    orderRepository.createWithItems.mockResolvedValue({ id: 1 });
+  });
+
+  it("grava a venda com a forma de pagamento usada no aparelho e vincula a cobrança", async () => {
+    terminalPaymentRepository.findById.mockResolvedValue(approved);
+
+    await orderService.createOrder(input);
+
+    expect(orderRepository.createWithItems).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentMethod: "CREDIT", paymentStatus: "PAID", terminalPaymentId: 7 }),
+    );
+  });
+
+  it("rejeita cobrança que não foi aprovada", async () => {
+    terminalPaymentRepository.findById.mockResolvedValue({ ...approved, status: "PENDING" });
+    await expect(orderService.createOrder(input)).rejects.toThrow("não foi aprovado");
+    expect(orderRepository.createWithItems).not.toHaveBeenCalled();
+  });
+
+  it("rejeita cobrança já usada em outra venda", async () => {
+    terminalPaymentRepository.findById.mockResolvedValue({ ...approved, orderId: 3 });
+    await expect(orderService.createOrder(input)).rejects.toThrow("já foi usada");
+  });
+
+  it("rejeita quando o valor cobrado não bate com o total do pedido", async () => {
+    terminalPaymentRepository.findById.mockResolvedValue({ ...approved, amount: "7.50" });
+    await expect(orderService.createOrder(input)).rejects.toThrow("não confere");
+  });
+
+  it("rejeita cobrança de maquininha em venda fiado ou dinheiro", async () => {
+    await expect(orderService.createOrder({ ...input, paymentMethod: "CASH" })).rejects.toThrow(
+      "não pode ser cobrada na maquininha",
     );
   });
 });

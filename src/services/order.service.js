@@ -1,6 +1,8 @@
 import * as orderRepository from "../repositories/order.repository.js";
 import * as productRepository from "../repositories/product.repository.js";
 import * as clientRepository from "../repositories/client.repository.js";
+import * as terminalPaymentRepository from "../repositories/terminalPayment.repository.js";
+import { TERMINAL_PAYMENT_METHODS, resolvePaymentMethod } from "../payments/paymentMethod.js";
 
 const ALL_PAYMENT_METHODS = ["CASH", "DEBIT", "CREDIT", "PIX", "TAB"];
 const KITCHEN_STATUSES = ["PENDING", "PREPARING", "READY"];
@@ -50,7 +52,7 @@ export async function getStockAuditBySeller() {
   );
 }
 
-export async function createOrder({ sellerId, paymentMethod, clientId, items }) {
+export async function createOrder({ sellerId, paymentMethod, clientId, items, terminalPaymentId }) {
   if (!ALL_PAYMENT_METHODS.includes(paymentMethod)) {
     throw new Error("Forma de pagamento inválida.");
   }
@@ -79,6 +81,32 @@ export async function createOrder({ sellerId, paymentMethod, clientId, items }) 
       quantity: item.quantity,
       unitPrice,
     });
+  }
+
+  totalAmount = Math.round(totalAmount * 100) / 100;
+
+  // Venda cobrada na maquininha: só entra com a cobrança aprovada, do mesmo valor e ainda não
+  // usada em outra venda. A forma de pagamento gravada é a que o cliente usou no aparelho.
+  if (terminalPaymentId) {
+    if (!TERMINAL_PAYMENT_METHODS.includes(paymentMethod)) {
+      throw new Error("Forma de pagamento não pode ser cobrada na maquininha.");
+    }
+    const terminalPayment = await terminalPaymentRepository.findById(Number(terminalPaymentId));
+    if (!terminalPayment) {
+      throw new Error("Cobrança da maquininha não encontrada.");
+    }
+    if (terminalPayment.status !== "APPROVED") {
+      throw new Error("O pagamento na maquininha não foi aprovado.");
+    }
+    if (terminalPayment.orderId) {
+      throw new Error("Esta cobrança da maquininha já foi usada em outra venda.");
+    }
+    if (Math.abs(Number(terminalPayment.amount) - totalAmount) > 0.009) {
+      throw new Error(
+        `O valor cobrado na maquininha (R$ ${Number(terminalPayment.amount).toFixed(2)}) não confere com o total do pedido (R$ ${totalAmount.toFixed(2)}).`,
+      );
+    }
+    paymentMethod = resolvePaymentMethod(terminalPayment.paymentType, paymentMethod);
   }
 
   let paymentStatus = "PAID";
@@ -115,5 +143,6 @@ export async function createOrder({ sellerId, paymentMethod, clientId, items }) 
     paymentStatus,
     items: resolvedItems,
     totalAmount,
+    terminalPaymentId: terminalPaymentId ? Number(terminalPaymentId) : null,
   });
 }

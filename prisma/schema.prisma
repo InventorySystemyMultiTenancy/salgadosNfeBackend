@@ -56,6 +56,21 @@ enum FiscalEnvironment {
   PRODUCTION
 }
 
+// Banco/adquirente da maquininha de cartão integrada ao PDV.
+enum PaymentProvider {
+  NONE
+  MERCADO_PAGO
+  SUMUP
+}
+
+enum TerminalPaymentStatus {
+  PENDING
+  APPROVED
+  CANCELED
+  FAILED
+  REFUNDED
+}
+
 model User {
   id           Int      @id @default(autoincrement())
   name         String
@@ -64,7 +79,8 @@ model User {
   role         Role     @default(SELLER)
   createdAt    DateTime @default(now()) @map("created_at")
 
-  orders Order[]
+  orders           Order[]
+  terminalPayments TerminalPayment[]
 
   @@map("users")
 }
@@ -88,20 +104,20 @@ model Product {
 }
 
 model Client {
-  id             Int      @id @default(autoincrement())
-  name           String
-  phone          String?
-  cpf            String?
-  cnpj           String?
+  id                Int      @id @default(autoincrement())
+  name              String
+  phone             String?
+  cpf               String?
+  cnpj              String?
   // Inscrição Estadual — só preencher se o cliente for contribuinte de ICMS (ex: revendedor). Sem
   // isso, a SEFAZ rejeita NF-e pra clientes PJ que têm IE ativa no cadastro dela mesmo se a gente
   // mandar "não contribuinte" (rejeição 232, testado ao vivo em 2026-08-26).
-  stateRegistration String? @map("state_registration")
-  dueDay         Int?     @map("due_day")
-  creditLimit    Decimal  @default(0) @db.Decimal(10, 2) @map("credit_limit")
-  currentBalance Decimal  @default(0) @db.Decimal(10, 2) @map("current_balance")
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now()) @map("created_at")
+  stateRegistration String?  @map("state_registration")
+  dueDay            Int?     @map("due_day")
+  creditLimit       Decimal  @default(0) @map("credit_limit") @db.Decimal(10, 2)
+  currentBalance    Decimal  @default(0) @map("current_balance") @db.Decimal(10, 2)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
 
   // Endereço — opcional, mas exigido pela NFe.io (buyer.address) pra emitir nota fiscal em nome
   // desse cliente. Sem esses campos preenchidos, a emissão via NFe.io falha com erro explícito.
@@ -131,27 +147,28 @@ model ClientPayment {
 }
 
 model Order {
-  id            Int           @id @default(autoincrement())
-  sellerId      Int           @map("seller_id")
-  clientId      Int?          @map("client_id")
-  totalAmount   Decimal       @db.Decimal(10, 2) @map("total_amount")
-  paymentMethod PaymentMethod @map("payment_method")
-  paymentStatus PaymentStatus @default(PAID) @map("payment_status")
-  kitchenStatus KitchenStatus @default(PENDING) @map("kitchen_status")
-  fiscalStatus  FiscalStatus  @default(NOT_EMITTED) @map("fiscal_status")
-  fiscalType    FiscalType?   @map("fiscal_type")
-  fiscalKey     String?       @map("fiscal_key")
-  fiscalError   String?       @map("fiscal_error")
+  id             Int           @id @default(autoincrement())
+  sellerId       Int           @map("seller_id")
+  clientId       Int?          @map("client_id")
+  totalAmount    Decimal       @map("total_amount") @db.Decimal(10, 2)
+  paymentMethod  PaymentMethod @map("payment_method")
+  paymentStatus  PaymentStatus @default(PAID) @map("payment_status")
+  kitchenStatus  KitchenStatus @default(PENDING) @map("kitchen_status")
+  fiscalStatus   FiscalStatus  @default(NOT_EMITTED) @map("fiscal_status")
+  fiscalType     FiscalType?   @map("fiscal_type")
+  fiscalKey      String?       @map("fiscal_key")
+  fiscalError    String?       @map("fiscal_error")
   // Links pro documento no servidor da Focus NFe (DANFE em HTML e o XML da nota) — só preenchidos
   // quando AUTHORIZED. Precisam ser resolvidos com o host correto (homologação/produção) no
   // momento da emissão, já que a resposta da Focus só devolve o caminho relativo.
-  fiscalDanfeUrl String?      @map("fiscal_danfe_url")
-  fiscalXmlUrl   String?      @map("fiscal_xml_url")
-  createdAt     DateTime      @default(now()) @map("created_at")
+  fiscalDanfeUrl String?       @map("fiscal_danfe_url")
+  fiscalXmlUrl   String?       @map("fiscal_xml_url")
+  createdAt      DateTime      @default(now()) @map("created_at")
 
-  seller User    @relation(fields: [sellerId], references: [id])
-  client Client? @relation(fields: [clientId], references: [id])
-  items  OrderItem[]
+  seller          User             @relation(fields: [sellerId], references: [id])
+  client          Client?          @relation(fields: [clientId], references: [id])
+  items           OrderItem[]
+  terminalPayment TerminalPayment?
 
   @@map("orders")
 }
@@ -161,7 +178,7 @@ model OrderItem {
   orderId   Int     @map("order_id")
   productId Int     @map("product_id")
   quantity  Int
-  unitPrice Decimal @db.Decimal(10, 2) @map("unit_price")
+  unitPrice Decimal @map("unit_price") @db.Decimal(10, 2)
 
   order   Order   @relation(fields: [orderId], references: [id])
   product Product @relation(fields: [productId], references: [id])
@@ -170,16 +187,16 @@ model OrderItem {
 }
 
 model FiscalSettings {
-  id              Int               @id @default(autoincrement())
-  companyName     String?           @map("company_name")
-  cnpj            String?
-  icmsRate        Decimal           @default(0) @db.Decimal(5, 2) @map("icms_rate")
-  gatewayProvider GatewayProvider   @default(NONE) @map("gateway_provider")
-  gatewayApiKey   String?           @map("gateway_api_key")
+  id               Int               @id @default(autoincrement())
+  companyName      String?           @map("company_name")
+  cnpj             String?
+  icmsRate         Decimal           @default(0) @map("icms_rate") @db.Decimal(5, 2)
+  gatewayProvider  GatewayProvider   @default(NONE) @map("gateway_provider")
+  gatewayApiKey    String?           @map("gateway_api_key")
   // Id da empresa no gateway — só a NFe.io exige isso hoje (Focus NFe/PlugNotas identificam a
   // empresa pelo CNPJ + api key). Fica genérico pra não amarrar o schema a um provedor específico.
-  gatewayCompanyId String?          @map("gateway_company_id")
-  environment     FiscalEnvironment @default(SANDBOX)
+  gatewayCompanyId String?           @map("gateway_company_id")
+  environment      FiscalEnvironment @default(SANDBOX)
 
   // Reforma Tributária (IBS/CBS) — Grupo UB, obrigatório em toda NFC-e a partir de 2026.
   // Alíquotas de teste oficiais pra 2026 (Ato Conjunto RFB/CGIBS Nº 1/2025): CBS 0,9%, IBS 0,1%
@@ -196,9 +213,9 @@ model FiscalSettings {
   // NFe. Um "autorizado" isolado que apareceu num teste manual veio com
   // "contingencia_offline": true (SEFAZ fora do ar naquele instante, validação mais frouxa) —
   // não é reprodutível, foi sorte de timing, não uma configuração válida.
-  cbsRate                       Decimal @default(0.9) @db.Decimal(6, 4) @map("cbs_rate")
-  ibsUfRate                     Decimal @default(0.1) @db.Decimal(6, 4) @map("ibs_uf_rate")
-  ibsMunRate                    Decimal @default(0) @db.Decimal(6, 4) @map("ibs_mun_rate")
+  cbsRate                       Decimal @default(0.9) @map("cbs_rate") @db.Decimal(6, 4)
+  ibsUfRate                     Decimal @default(0.1) @map("ibs_uf_rate") @db.Decimal(6, 4)
+  ibsMunRate                    Decimal @default(0) @map("ibs_mun_rate") @db.Decimal(6, 4)
   ibsCbsSituacaoTributaria      String  @default("000") @map("ibs_cbs_situacao_tributaria")
   ibsCbsClassificacaoTributaria String  @default("000001") @map("ibs_cbs_classificacao_tributaria")
   // Código IBGE do município (7 dígitos) do fato gerador do IBS/CBS — obrigatório (cMunFGIBS).
@@ -207,4 +224,42 @@ model FiscalSettings {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("fiscal_settings")
+}
+
+model PaymentSettings {
+  id         Int             @id @default(autoincrement())
+  provider   PaymentProvider @default(NONE)
+  // Token da API do banco (Mercado Pago: Access Token de produção; SumUp: API key).
+  apiKey     String?         @map("api_key")
+  // Id da conta no banco — só a SumUp exige (merchant code). O Mercado Pago identifica pela apiKey.
+  accountId  String?         @map("account_id")
+  terminalId String?         @map("terminal_id")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  @@map("payment_settings")
+}
+
+// Cada cobrança enviada pra maquininha. A venda (Order) só é criada depois que a cobrança fica
+// APPROVED, e aí fica vinculada aqui via orderId — uma cobrança aprovada vale pra uma venda só.
+model TerminalPayment {
+  id             Int                   @id @default(autoincrement())
+  provider       PaymentProvider
+  providerId     String                @map("provider_id")
+  terminalId     String                @map("terminal_id")
+  amount         Decimal               @db.Decimal(10, 2)
+  status         TerminalPaymentStatus @default(PENDING)
+  providerStatus String?               @map("provider_status")
+  statusDetail   String?               @map("status_detail")
+  // Tipo de pagamento que o cliente escolheu na maquininha (ex: credit_card, debit_card, qr).
+  paymentType    String?               @map("payment_type")
+  sellerId       Int                   @map("seller_id")
+  orderId        Int?                  @unique @map("order_id")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  seller User   @relation(fields: [sellerId], references: [id])
+  order  Order? @relation(fields: [orderId], references: [id])
+
+  @@index([status])
+  @@map("terminal_payments")
 }
