@@ -6,10 +6,10 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "start": "prisma migrate deploy && node src/server.js",
     "seed": "node prisma/seed.js",
     "test": "vitest run",
-    "build": "prisma generate",
+    "build": "prisma generate && prisma migrate deploy",
     "postinstall": "prisma generate"
   },
   "dependencies": {
