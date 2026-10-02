@@ -1,7 +1,7 @@
 import { prisma } from "../prismaClient.js";
 
 const preorderInclude = {
-  items: { include: { product: { select: { id: true, name: true, imageUrl: true } } } },
+  items: { include: { product: { select: { id: true, name: true, imageUrl: true, category: true } } } },
   client: { select: { id: true, name: true, phone: true } },
   createdBy: { select: { id: true, name: true } },
 };
