@@ -80,7 +80,7 @@ export async function getStatement(id) {
   }
 
   const orders = await prisma.order.findMany({
-    where: { clientId: client.id, paymentMethod: "TAB" },
+    where: { clientId: client.id, paymentMethod: "TAB", canceledAt: null },
     include: { items: { include: { product: true } } },
     orderBy: { createdAt: "asc" },
   });
@@ -97,7 +97,9 @@ export async function getStatement(id) {
       type: "payment",
       date: payment.createdAt,
       amount: Number(payment.amount),
-      description: "Pagamento recebido",
+      description: payment.paymentMethod
+        ? `Pagamento recebido (${PAYMENT_LABEL[payment.paymentMethod]})`
+        : "Pagamento recebido",
     })),
   ].sort((a, b) => a.date - b.date);
 
@@ -113,7 +115,13 @@ export async function getStatement(id) {
   return { client, entries, message: messageLines.join("\n") };
 }
 
-export async function settleDebt(id, amount) {
+const PAYMENT_LABEL = { CASH: "dinheiro", DEBIT: "débito", CREDIT: "crédito", PIX: "Pix" };
+const SETTLE_PAYMENT_METHODS = ["CASH", "DEBIT", "CREDIT", "PIX"];
+
+export async function settleDebt(id, amount, paymentMethod = "CASH") {
+  if (!SETTLE_PAYMENT_METHODS.includes(paymentMethod)) {
+    throw new Error("Forma de pagamento inválida para quitar o fiado.");
+  }
   const client = await clientRepository.findById(Number(id));
   if (!client) {
     throw new Error("Cliente não encontrado.");
@@ -126,7 +134,7 @@ export async function settleDebt(id, amount) {
   }
 
   return prisma.$transaction(async (tx) => {
-    await clientPaymentRepository.create(client.id, amount, tx);
+    await clientPaymentRepository.create(client.id, amount, tx, paymentMethod);
     return tx.client.update({
       where: { id: client.id },
       data: { currentBalance: { decrement: amount } },

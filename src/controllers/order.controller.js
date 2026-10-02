@@ -31,6 +31,17 @@ export async function create(req, res) {
   }
 }
 
+export async function cancel(req, res) {
+  try {
+    const order = await orderService.cancelOrder(req.params.id, { userId: req.user.id, reason: req.body.reason });
+    // A cozinha trata pedido cancelado como "saiu da fila".
+    getIO().to("kitchen").emit("order:updated", order);
+    return res.json(order);
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+}
+
 export async function kitchenQueue(req, res) {
   const orders = await orderService.getKitchenQueue();
   return res.json(orders);

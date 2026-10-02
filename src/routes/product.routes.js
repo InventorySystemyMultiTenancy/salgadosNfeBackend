@@ -18,7 +18,7 @@ const router = Router();
 
 router.use(verifyToken);
 
-router.get("/", requireRole("ADMIN", "SELLER"), productController.list);
+router.get("/", requireRole("ADMIN", "SELLER", "KITCHEN"), productController.list);
 router.post("/", requireRole("ADMIN"), productController.create);
 router.put("/:id", requireRole("ADMIN"), productController.update);
 router.post("/:id/image", requireRole("ADMIN"), (req, res, next) => {

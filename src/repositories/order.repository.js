@@ -1,4 +1,5 @@
 import { prisma } from "../prismaClient.js";
+import { applyDelta } from "./stock.repository.js";
 
 export function findAll({ clientId } = {}) {
   return prisma.order.findMany({
@@ -7,6 +8,8 @@ export function findAll({ clientId } = {}) {
       items: { include: { product: { select: { id: true, name: true } } } },
       seller: { select: { id: true, name: true } },
       client: { select: { id: true, name: true, cpf: true, cnpj: true } },
+      canceledBy: { select: { id: true, name: true } },
+      terminalPayment: { select: { id: true, provider: true } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -25,7 +28,7 @@ export function findById(id) {
 
 export function findKitchenQueue() {
   return prisma.order.findMany({
-    where: { kitchenStatus: { not: "READY" } },
+    where: { kitchenStatus: { not: "READY" }, canceledAt: null },
     include: { items: { include: { product: true } }, seller: { select: { id: true, name: true } } },
     orderBy: { createdAt: "asc" },
   });
@@ -51,10 +54,77 @@ export function updateFiscalResult(
 
 export function findAllItemsWithSellerAndProduct() {
   return prisma.orderItem.findMany({
+    where: { order: { canceledAt: null } },
     include: {
       product: { select: { id: true, name: true } },
       order: { select: { seller: { select: { id: true, name: true } } } },
     },
+  });
+}
+
+// Pedidos válidos (não cancelados) num intervalo — base dos relatórios e do fechamento de caixa.
+export function findInRange({ from, to }) {
+  return prisma.order.findMany({
+    where: { createdAt: { gte: from, lt: to }, canceledAt: null },
+    include: {
+      items: { include: { product: { select: { id: true, name: true, category: true } } } },
+      seller: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+export function aggregateCanceledInRange({ from, to }) {
+  return prisma.order.aggregate({
+    where: { createdAt: { gte: from, lt: to }, canceledAt: { not: null } },
+    _count: true,
+    _sum: { totalAmount: true },
+  });
+}
+
+// Desfaz a venda numa transação só: marca como cancelada, devolve o estoque e, se foi fiado, tira o
+// valor do saldo devedor do cliente. O updateMany com canceledAt: null impede cancelar duas vezes
+// se dois cliques chegarem juntos.
+export function cancel(id, { canceledById, cancelReason }) {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.order.updateMany({
+      where: { id, canceledAt: null },
+      data: { canceledAt: new Date(), canceledById, cancelReason },
+    });
+    if (count === 0) {
+      throw new Error("Este pedido já foi cancelado.");
+    }
+
+    const order = await tx.order.findUnique({ where: { id }, include: { items: true } });
+
+    for (const item of order.items) {
+      await applyDelta(tx, {
+        productId: item.productId,
+        delta: item.quantity,
+        type: "SALE_CANCEL",
+        reason: cancelReason,
+        userId: canceledById,
+        orderId: id,
+      });
+    }
+
+    if (order.clientId && order.paymentMethod === "TAB") {
+      await tx.client.update({
+        where: { id: order.clientId },
+        data: { currentBalance: { decrement: order.totalAmount } },
+      });
+    }
+
+    return tx.order.findUnique({
+      where: { id },
+      include: {
+        items: { include: { product: true } },
+        seller: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true, cpf: true, cnpj: true } },
+        canceledBy: { select: { id: true, name: true } },
+        terminalPayment: { select: { id: true, provider: true } },
+      },
+    });
   });
 }
 
@@ -95,9 +165,12 @@ export function createWithItems({ sellerId, clientId, paymentMethod, paymentStat
     }
 
     for (const item of items) {
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stockQuantity: { decrement: item.quantity } },
+      await applyDelta(tx, {
+        productId: item.productId,
+        delta: -item.quantity,
+        type: "SALE",
+        userId: sellerId,
+        orderId: order.id,
       });
     }
 

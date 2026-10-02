@@ -8,7 +8,7 @@ export async function list(req, res) {
 
 export async function create(req, res) {
   try {
-    const product = await productService.createProduct(req.body);
+    const product = await productService.createProduct(req.body, req.user.id);
     return res.status(201).json(product);
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -17,7 +17,7 @@ export async function create(req, res) {
 
 export async function update(req, res) {
   try {
-    const product = await productService.updateProduct(req.params.id, req.body);
+    const product = await productService.updateProduct(req.params.id, req.body, req.user.id);
     return res.json(product);
   } catch (error) {
     return res.status(400).json({ error: error.message });

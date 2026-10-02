@@ -62,7 +62,7 @@ describe("client.service.settleDebt", () => {
 
     await clientService.settleDebt(1, 20);
 
-    expect(clientPaymentRepository.create).toHaveBeenCalledWith(1, 20, prismaTxMock);
+    expect(clientPaymentRepository.create).toHaveBeenCalledWith(1, 20, prismaTxMock, "CASH");
     expect(prismaTxMock.client.update).toHaveBeenCalledWith({
       where: { id: 1 },
       data: { currentBalance: { decrement: 20 } },

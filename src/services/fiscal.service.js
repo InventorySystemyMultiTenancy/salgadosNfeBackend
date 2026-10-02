@@ -77,6 +77,9 @@ async function emitDocumentForOrder(orderId, method, fiscalType) {
   if (!order) {
     throw new Error("Pedido não encontrado.");
   }
+  if (order.canceledAt) {
+    throw new Error("Pedido cancelado não pode ter nota fiscal emitida.");
+  }
 
   const settings = await fiscalSettingsRepository.get();
   const client = getGatewayClient(settings.gatewayProvider);

@@ -48,7 +48,11 @@ export async function statement(req, res) {
 
 export async function pay(req, res) {
   try {
-    const client = await clientService.settleDebt(req.params.id, Number(req.body.amount));
+    const client = await clientService.settleDebt(
+      req.params.id,
+      Number(req.body.amount),
+      req.body.paymentMethod || undefined,
+    );
     return res.json(client);
   } catch (error) {
     return res.status(400).json({ error: error.message });

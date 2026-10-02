@@ -4,7 +4,7 @@ export function listProducts() {
   return productRepository.findAll();
 }
 
-export function createProduct(data) {
+export function createProduct(data, userId) {
   if (!data.name || !data.category || data.price == null) {
     throw new Error("Nome, categoria e preço são obrigatórios.");
   }
@@ -17,10 +17,10 @@ export function createProduct(data) {
     ncm: data.ncm ?? null,
     cfop: data.cfop ?? null,
     minStockAlert: data.minStockAlert ?? null,
-  });
+  }, userId);
 }
 
-export async function updateProduct(id, data) {
+export async function updateProduct(id, data, userId) {
   const existing = await productRepository.findById(Number(id));
   if (!existing) {
     throw new Error("Produto não encontrado.");
@@ -34,7 +34,7 @@ export async function updateProduct(id, data) {
     ncm: data.ncm ?? existing.ncm,
     cfop: data.cfop ?? existing.cfop,
     minStockAlert: data.minStockAlert ?? existing.minStockAlert,
-  });
+  }, userId);
 }
 
 export async function setProductImage(id, imageUrl) {

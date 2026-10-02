@@ -167,3 +167,29 @@ describe("order.service.createOrder com cobrança da maquininha", () => {
     );
   });
 });
+
+describe("order.service.cancelOrder", () => {
+  const order = { id: 7, canceledAt: null, fiscalStatus: "NOT_EMITTED" };
+
+  it("exige motivo", async () => {
+    await expect(orderService.cancelOrder(7, { userId: 1, reason: "  " })).rejects.toThrow("motivo");
+    expect(orderRepository.cancel).not.toHaveBeenCalled();
+  });
+
+  it("recusa pedido já cancelado", async () => {
+    orderRepository.findById.mockResolvedValue({ ...order, canceledAt: new Date() });
+    await expect(orderService.cancelOrder(7, { userId: 1, reason: "erro" })).rejects.toThrow("já foi cancelado");
+  });
+
+  it("recusa pedido com nota fiscal autorizada", async () => {
+    orderRepository.findById.mockResolvedValue({ ...order, fiscalStatus: "AUTHORIZED" });
+    await expect(orderService.cancelOrder(7, { userId: 1, reason: "erro" })).rejects.toThrow("nota fiscal");
+  });
+
+  it("cancela com motivo e operador", async () => {
+    orderRepository.findById.mockResolvedValue(order);
+    orderRepository.cancel.mockResolvedValue({ id: 7 });
+    await orderService.cancelOrder("7", { userId: 3, reason: " lançado errado " });
+    expect(orderRepository.cancel).toHaveBeenCalledWith(7, { canceledById: 3, cancelReason: "lançado errado" });
+  });
+});

@@ -11,6 +11,7 @@ router.put("/:id/kitchen-status", requireRole("ADMIN", "KITCHEN"), orderControll
 router.get("/audit/stock", requireRole("ADMIN"), orderController.stockAudit);
 router.post("/:id/emit-fiscal", requireRole("ADMIN"), orderController.emitFiscal);
 router.post("/:id/emit-fiscal-nfe", requireRole("ADMIN"), orderController.emitFiscalNFe);
+router.post("/:id/cancel", requireRole("ADMIN"), orderController.cancel);
 
 router.get("/", requireRole("ADMIN"), orderController.list);
 router.get("/:id", requireRole("ADMIN", "SELLER"), orderController.getOne);

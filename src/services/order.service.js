@@ -52,6 +52,30 @@ export async function getStockAuditBySeller() {
   );
 }
 
+export async function cancelOrder(id, { userId, reason }) {
+  const trimmedReason = reason?.trim();
+  if (!trimmedReason) {
+    throw new Error("Informe o motivo do cancelamento.");
+  }
+
+  const order = await orderRepository.findById(Number(id));
+  if (!order) {
+    throw new Error("Pedido não encontrado.");
+  }
+  if (order.canceledAt) {
+    throw new Error("Este pedido já foi cancelado.");
+  }
+  // Nota autorizada (ou ainda em processamento) na SEFAZ não some só cancelando aqui — precisa ser
+  // cancelada no gateway fiscal primeiro, senão o sistema e a SEFAZ ficam divergentes.
+  if (order.fiscalStatus === "AUTHORIZED" || order.fiscalStatus === "PENDING") {
+    throw new Error(
+      "Este pedido tem nota fiscal emitida. Cancele a nota no painel do emissor fiscal antes de cancelar o pedido.",
+    );
+  }
+
+  return orderRepository.cancel(order.id, { canceledById: userId, cancelReason: trimmedReason });
+}
+
 export async function createOrder({ sellerId, paymentMethod, clientId, items, terminalPaymentId }) {
   if (!ALL_PAYMENT_METHODS.includes(paymentMethod)) {
     throw new Error("Forma de pagamento inválida.");
