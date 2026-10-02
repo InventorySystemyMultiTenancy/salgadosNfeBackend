@@ -21,14 +21,19 @@ export function findById(id) {
   return prisma.cashSession.findUnique({ where: { id }, include: sessionInclude });
 }
 
-export function findRecent(limit = 30) {
+export function findRecent({ openedAt, userId, take = 100 } = {}) {
+  const where = {
+    ...(openedAt ? { openedAt } : {}),
+    ...(userId ? { OR: [{ openedById: userId }, { closedById: userId }] } : {}),
+  };
   return prisma.cashSession.findMany({
+    where,
     include: {
       openedBy: { select: { id: true, name: true } },
       closedBy: { select: { id: true, name: true } },
     },
     orderBy: { openedAt: "desc" },
-    take: limit,
+    take,
   });
 }
 

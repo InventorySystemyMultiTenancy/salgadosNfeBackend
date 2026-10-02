@@ -1,5 +1,6 @@
 import * as stockRepository from "../repositories/stock.repository.js";
 import * as productRepository from "../repositories/product.repository.js";
+import { parseId, parseOptionalRange } from "./filters.js";
 
 const ENTRY_TYPES = ["ENTRY", "LOSS"];
 const MOVEMENT_TYPES = ["ENTRY", "LOSS", "COUNT", "ADJUSTMENT", "SALE", "SALE_CANCEL"];
@@ -108,8 +109,11 @@ export function listMovements({ productId, type, from, to }) {
   });
 }
 
-export async function listCounts() {
-  const counts = await stockRepository.findCounts();
+export async function listCounts({ from, to, userId } = {}) {
+  const counts = await stockRepository.findCounts({
+    createdAt: parseOptionalRange({ from, to }),
+    userId: parseId(userId),
+  });
   return counts.map(({ items, ...count }) => ({
     ...count,
     productsCounted: items.length,

@@ -35,6 +35,6 @@ export const applyCount = handle(
   201,
 );
 
-export const listCounts = handle(() => stockService.listCounts());
+export const listCounts = handle((req) => stockService.listCounts(req.query));
 
 export const getCount = handle((req) => stockService.getCount(req.params.id));

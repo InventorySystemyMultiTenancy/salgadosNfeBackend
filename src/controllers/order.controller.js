@@ -3,8 +3,11 @@ import * as fiscalService from "../services/fiscal.service.js";
 import { getIO } from "../socket.js";
 
 export async function list(req, res) {
-  const orders = await orderService.listOrders({ clientId: req.query.clientId });
-  return res.json(orders);
+  try {
+    return res.json(await orderService.listOrders(req.query));
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 }
 
 export async function getOne(req, res) {
@@ -58,8 +61,11 @@ export async function updateKitchenStatus(req, res) {
 }
 
 export async function stockAudit(req, res) {
-  const audit = await orderService.getStockAuditBySeller();
-  return res.json(audit);
+  try {
+    return res.json(await orderService.getStockAuditBySeller(req.query));
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
 }
 
 export async function emitFiscal(req, res) {

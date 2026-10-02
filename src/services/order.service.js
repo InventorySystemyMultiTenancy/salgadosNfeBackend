@@ -3,12 +3,75 @@ import * as productRepository from "../repositories/product.repository.js";
 import * as clientRepository from "../repositories/client.repository.js";
 import * as terminalPaymentRepository from "../repositories/terminalPayment.repository.js";
 import { TERMINAL_PAYMENT_METHODS, resolvePaymentMethod } from "../payments/paymentMethod.js";
+import { parseId, parseOptionalRange, parsePage } from "./filters.js";
 
 const ALL_PAYMENT_METHODS = ["CASH", "DEBIT", "CREDIT", "PIX", "TAB"];
 const KITCHEN_STATUSES = ["PENDING", "PREPARING", "READY"];
 
-export function listOrders({ clientId } = {}) {
-  return orderRepository.findAll({ clientId });
+const FISCAL_STATUSES = ["NOT_EMITTED", "PENDING", "AUTHORIZED", "REJECTED"];
+
+// Sem acento e minúsculo: "conceicao" acha "Conceição".
+function normalizeText(text) {
+  return String(text ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+// Monta o filtro da tela de Pedidos. Busca livre: número → pedido exato; texto → nome do cliente
+// (ids já resolvidos sem acento em `matchingClientIds`) ou parte do CPF/CNPJ.
+export function buildOrderFilter(
+  { clientId, sellerId, from, to, paymentMethod, fiscalStatus, status, q } = {},
+  { matchingClientIds = [] } = {},
+) {
+  const and = [];
+  const createdAt = parseOptionalRange({ from, to });
+  if (createdAt) and.push({ createdAt });
+
+  const client = parseId(clientId);
+  if (client) and.push({ clientId: client });
+  const seller = parseId(sellerId);
+  if (seller) and.push({ sellerId: seller });
+
+  if (paymentMethod) {
+    if (!ALL_PAYMENT_METHODS.includes(paymentMethod)) throw new Error("Forma de pagamento inválida.");
+    and.push({ paymentMethod });
+  }
+  if (fiscalStatus) {
+    if (!FISCAL_STATUSES.includes(fiscalStatus)) throw new Error("Status fiscal inválido.");
+    and.push({ fiscalStatus });
+  }
+  if (status === "active") and.push({ canceledAt: null });
+  else if (status === "canceled") and.push({ canceledAt: { not: null } });
+  else if (status) throw new Error("Situação inválida.");
+
+  const term = q?.trim();
+  if (term) {
+    const digits = term.replace(/\D/g, "");
+    const or = [{ clientId: { in: matchingClientIds } }];
+    if (/^#?\d+$/.test(term)) or.push({ id: Number(digits) });
+    if (digits.length >= 3) {
+      or.push({ client: { cpf: { contains: digits } } }, { client: { cnpj: { contains: digits } } });
+    }
+    and.push({ OR: or });
+  }
+
+  return and.length ? { AND: and } : {};
+}
+
+export async function listOrders(filters = {}) {
+  // O Postgres compara com acento; a tabela de clientes é pequena, então o nome é casado aqui.
+  let matchingClientIds = [];
+  const term = normalizeText(filters.q);
+  if (term) {
+    const clients = await clientRepository.findAllNames();
+    matchingClientIds = clients.filter((c) => normalizeText(c.name).includes(term)).map((c) => c.id);
+  }
+  const where = buildOrderFilter(filters, { matchingClientIds });
+  const page = parsePage(filters);
+  const result = await orderRepository.findPage(where, page);
+  return { ...result, page: page.page, pageSize: page.pageSize };
 }
 
 export function getOrder(id) {
@@ -26,8 +89,11 @@ export function setKitchenStatus(id, status) {
   return orderRepository.updateKitchenStatus(Number(id), status);
 }
 
-export async function getStockAuditBySeller() {
-  const orderItems = await orderRepository.findAllItemsWithSellerAndProduct();
+export async function getStockAuditBySeller({ from, to, sellerId } = {}) {
+  const orderItems = await orderRepository.findAllItemsWithSellerAndProduct({
+    createdAt: parseOptionalRange({ from, to }),
+    sellerId: parseId(sellerId),
+  });
 
   const grouped = new Map();
   for (const item of orderItems) {

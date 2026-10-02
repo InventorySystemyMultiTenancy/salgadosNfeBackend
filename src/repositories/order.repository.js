@@ -1,18 +1,23 @@
 import { prisma } from "../prismaClient.js";
 import { applyDelta } from "./stock.repository.js";
 
-export function findAll({ clientId } = {}) {
-  return prisma.order.findMany({
-    where: clientId ? { clientId: Number(clientId) } : undefined,
-    include: {
-      items: { include: { product: { select: { id: true, name: true } } } },
-      seller: { select: { id: true, name: true } },
-      client: { select: { id: true, name: true, cpf: true, cnpj: true } },
-      canceledBy: { select: { id: true, name: true } },
-      terminalPayment: { select: { id: true, provider: true } },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+const listInclude = {
+  items: { include: { product: { select: { id: true, name: true } } } },
+  seller: { select: { id: true, name: true } },
+  client: { select: { id: true, name: true, cpf: true, cnpj: true } },
+  canceledBy: { select: { id: true, name: true } },
+  terminalPayment: { select: { id: true, provider: true } },
+};
+
+// Página de pedidos + total de registros e soma do valor (só dos não cancelados) do filtro inteiro,
+// não só da página — pra tela mostrar "123 pedidos · R$ 4.560,00".
+export async function findPage(where, { skip, take }) {
+  const [orders, total, sum] = await prisma.$transaction([
+    prisma.order.findMany({ where, include: listInclude, orderBy: { createdAt: "desc" }, skip, take }),
+    prisma.order.count({ where }),
+    prisma.order.aggregate({ where: { AND: [where, { canceledAt: null }] }, _sum: { totalAmount: true } }),
+  ]);
+  return { orders, total, totalAmount: Number(sum._sum.totalAmount ?? 0) };
 }
 
 export function findById(id) {
@@ -52,9 +57,11 @@ export function updateFiscalResult(
   });
 }
 
-export function findAllItemsWithSellerAndProduct() {
+export function findAllItemsWithSellerAndProduct({ createdAt, sellerId } = {}) {
   return prisma.orderItem.findMany({
-    where: { order: { canceledAt: null } },
+    where: {
+      order: { canceledAt: null, ...(createdAt ? { createdAt } : {}), ...(sellerId ? { sellerId } : {}) },
+    },
     include: {
       product: { select: { id: true, name: true } },
       order: { select: { seller: { select: { id: true, name: true } } } },

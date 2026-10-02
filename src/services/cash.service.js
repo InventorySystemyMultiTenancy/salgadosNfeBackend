@@ -2,6 +2,7 @@ import * as cashRepository from "../repositories/cash.repository.js";
 import * as orderRepository from "../repositories/order.repository.js";
 import * as clientPaymentRepository from "../repositories/clientPayment.repository.js";
 import * as preorderRepository from "../repositories/preorder.repository.js";
+import { parseId, parseOptionalRange } from "./filters.js";
 
 const MONEY_METHODS = ["CASH", "DEBIT", "CREDIT", "PIX"];
 const MOVEMENT_TYPES = ["SUPPLY", "WITHDRAWAL"];
@@ -167,8 +168,9 @@ export async function closeSession({ userId, countedCash, notes }) {
   return { ...closed, summary };
 }
 
-export function listSessions() {
-  return cashRepository.findRecent();
+// Histórico: período (pela abertura) e pessoa (quem abriu OU quem fechou).
+export function listSessions({ from, to, userId } = {}) {
+  return cashRepository.findRecent({ openedAt: parseOptionalRange({ from, to }), userId: parseId(userId) });
 }
 
 export async function getSession(id) {

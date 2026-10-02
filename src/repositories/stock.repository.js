@@ -110,8 +110,9 @@ export function findMovements({ productId, type, from, to, take = 300 }) {
   });
 }
 
-export function findCounts(take = 30) {
+export function findCounts({ createdAt, userId, take = 100 } = {}) {
   return prisma.stockCount.findMany({
+    where: { ...(createdAt ? { createdAt } : {}), ...(userId ? { userId } : {}) },
     include: {
       user: { select: { id: true, name: true } },
       items: { select: { difference: true } },

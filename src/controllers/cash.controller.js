@@ -29,6 +29,6 @@ export const close = handle((req) =>
   cashService.closeSession({ userId: req.user.id, countedCash: req.body.countedCash, notes: req.body.notes }),
 );
 
-export const list = handle(() => cashService.listSessions());
+export const list = handle((req) => cashService.listSessions(req.query));
 
 export const getOne = handle((req) => cashService.getSession(req.params.id));

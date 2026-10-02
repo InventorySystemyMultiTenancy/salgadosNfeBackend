@@ -7,6 +7,11 @@ export function findAll() {
   });
 }
 
+// Inclui inativos: pedidos antigos continuam achando o cliente pelo nome.
+export function findAllNames() {
+  return prisma.client.findMany({ select: { id: true, name: true } });
+}
+
 export function findById(id) {
   return prisma.client.findUnique({ where: { id } });
 }
