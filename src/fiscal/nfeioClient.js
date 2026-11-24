@@ -1,4 +1,5 @@
 import axios from "axios";
+import { splitDiscount } from "./discount.js";
 
 const BASE_URL = "https://api.nfse.io";
 
@@ -55,13 +56,15 @@ export async function emitNFCe({ settings, order }, httpClient = axios, pollOpti
     );
   }
 
-  const items = order.items.map((item) => ({
+  const discounts = splitDiscount(order);
+  const items = order.items.map((item, index) => ({
     code: String(item.productId),
     description: item.product.name,
     ncm: item.product.ncm || "00000000",
     cfop: item.product.cfop || "5102",
     quantity: item.quantity,
     unitAmount: Number(item.unitPrice),
+    ...(discounts[index] > 0 ? { discountAmount: discounts[index] } : {}),
     tax: {
       icms: { origin: 0, csosn: "102" },
       pis: { cst: "07" },

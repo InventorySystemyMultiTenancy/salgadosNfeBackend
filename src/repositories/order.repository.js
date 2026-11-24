@@ -1,11 +1,16 @@
 import { prisma } from "../prismaClient.js";
 import { applyDelta } from "./stock.repository.js";
+import { comboInclude } from "./product.repository.js";
+
+// Item com o produto e, se for combo, o que vai dentro — a cozinha precisa ver os componentes.
+const itemsWithProduct = { include: { product: { include: comboInclude } } };
 
 const listInclude = {
   items: { include: { product: { select: { id: true, name: true } } } },
   seller: { select: { id: true, name: true } },
   client: { select: { id: true, name: true, cpf: true, cnpj: true } },
   canceledBy: { select: { id: true, name: true } },
+  discountApprovedBy: { select: { id: true, name: true } },
   terminalPayment: { select: { id: true, provider: true } },
 };
 
@@ -34,7 +39,7 @@ export function findById(id) {
 export function findKitchenQueue() {
   return prisma.order.findMany({
     where: { kitchenStatus: { not: "READY" }, canceledAt: null },
-    include: { items: { include: { product: true } }, seller: { select: { id: true, name: true } } },
+    include: { items: itemsWithProduct, seller: { select: { id: true, name: true } } },
     orderBy: { createdAt: "asc" },
   });
 }
@@ -43,7 +48,7 @@ export function updateKitchenStatus(id, kitchenStatus) {
   return prisma.order.update({
     where: { id },
     data: { kitchenStatus },
-    include: { items: { include: { product: true } }, seller: { select: { id: true, name: true } } },
+    include: { items: itemsWithProduct, seller: { select: { id: true, name: true } } },
   });
 }
 
@@ -104,10 +109,17 @@ export function cancel(id, { canceledById, cancelReason }) {
 
     const order = await tx.order.findUnique({ where: { id }, include: { items: true } });
 
-    for (const item of order.items) {
+    // Devolve exatamente o que saiu na venda (inclusive componentes de combo), pelas movimentações
+    // dela. Pedido de antes do livro de estoque existir não tem movimentação: aí usa os itens.
+    const saleMovements = await tx.stockMovement.findMany({ where: { orderId: id, type: "SALE" } });
+    const returns = saleMovements.length
+      ? saleMovements.map((m) => ({ productId: m.productId, quantity: -m.quantity }))
+      : order.items.map((item) => ({ productId: item.productId, quantity: item.quantity }));
+
+    for (const line of returns) {
       await applyDelta(tx, {
-        productId: item.productId,
-        delta: item.quantity,
+        productId: line.productId,
+        delta: line.quantity,
         type: "SALE_CANCEL",
         reason: cancelReason,
         userId: canceledById,
@@ -135,7 +147,20 @@ export function cancel(id, { canceledById, cancelReason }) {
   });
 }
 
-export function createWithItems({ sellerId, clientId, paymentMethod, paymentStatus, items, totalAmount, terminalPaymentId }) {
+export function createWithItems({
+  sellerId,
+  clientId,
+  paymentMethod,
+  paymentStatus,
+  items,
+  stockLines = items,
+  totalAmount,
+  subtotalAmount = totalAmount,
+  discountAmount = 0,
+  discountReason = null,
+  discountApprovedById = null,
+  terminalPaymentId,
+}) {
   return prisma.$transaction(async (tx) => {
     const order = await tx.order.create({
       data: {
@@ -144,6 +169,10 @@ export function createWithItems({ sellerId, clientId, paymentMethod, paymentStat
         paymentMethod,
         paymentStatus,
         totalAmount,
+        subtotalAmount,
+        discountAmount,
+        discountReason,
+        discountApprovedById,
         items: {
           create: items.map((item) => ({
             productId: item.productId,
@@ -153,7 +182,7 @@ export function createWithItems({ sellerId, clientId, paymentMethod, paymentStat
         },
       },
       include: {
-        items: { include: { product: true } },
+        items: itemsWithProduct,
         seller: { select: { id: true, name: true } },
         client: { select: { id: true, name: true, cpf: true, cnpj: true } },
       },
@@ -171,11 +200,12 @@ export function createWithItems({ sellerId, clientId, paymentMethod, paymentStat
       }
     }
 
-    for (const item of items) {
+    for (const line of stockLines) {
       await applyDelta(tx, {
-        productId: item.productId,
-        delta: -item.quantity,
+        productId: line.productId,
+        delta: -line.quantity,
         type: "SALE",
+        reason: line.reason ?? null,
         userId: sellerId,
         orderId: order.id,
       });

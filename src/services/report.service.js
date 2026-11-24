@@ -45,6 +45,8 @@ export async function getSalesSummary({ from, to, tzOffset = 0 }) {
   const products = new Map();
   const sellers = new Map();
   let revenue = 0;
+  let discountTotal = 0;
+  let discountedOrders = 0;
 
   // Pré-preenche todos os dias do período, pra dia sem venda aparecer zerado no gráfico.
   for (let t = start.getTime(); t < end.getTime(); t += DAY_MS) {
@@ -54,6 +56,10 @@ export async function getSalesSummary({ from, to, tzOffset = 0 }) {
   for (const order of orders) {
     const total = Number(order.totalAmount);
     revenue += total;
+    if (Number(order.discountAmount) > 0) {
+      discountTotal += Number(order.discountAmount);
+      discountedOrders += 1;
+    }
 
     byMethod[order.paymentMethod] ??= { method: order.paymentMethod, total: 0, count: 0 };
     byMethod[order.paymentMethod].total += total;
@@ -95,6 +101,8 @@ export async function getSalesSummary({ from, to, tzOffset = 0 }) {
     ordersCount: orders.length,
     averageTicket: orders.length ? round(revenue / orders.length) : 0,
     itemsSold: Array.from(products.values()).reduce((sum, p) => sum + p.quantity, 0),
+    discountTotal: round(discountTotal),
+    discountedOrders,
     canceledCount: canceled._count,
     canceledTotal: round(Number(canceled._sum.totalAmount ?? 0)),
     byMethod: Object.values(byMethod).map(roundTotals).sort((a, b) => b.total - a.total),

@@ -103,15 +103,16 @@ model User {
   role         Role     @default(SELLER)
   createdAt    DateTime @default(now()) @map("created_at")
 
-  orders           Order[]
-  terminalPayments TerminalPayment[]
-  canceledOrders   Order[]           @relation("OrderCanceledBy")
-  openedSessions   CashSession[]     @relation("CashSessionOpenedBy")
-  closedSessions   CashSession[]     @relation("CashSessionClosedBy")
-  cashMovements    CashMovement[]
-  preorders        Preorder[]
-  stockMovements   StockMovement[]
-  stockCounts      StockCount[]
+  orders            Order[]
+  terminalPayments  TerminalPayment[]
+  canceledOrders    Order[]           @relation("OrderCanceledBy")
+  openedSessions    CashSession[]     @relation("CashSessionOpenedBy")
+  closedSessions    CashSession[]     @relation("CashSessionClosedBy")
+  cashMovements     CashMovement[]
+  preorders         Preorder[]
+  stockMovements    StockMovement[]
+  stockCounts       StockCount[]
+  approvedDiscounts Order[]           @relation("OrderDiscountApprovedBy")
 
   @@map("users")
 }
@@ -126,6 +127,8 @@ model Product {
   cfop          String?
   minStockAlert Int?     @map("min_stock_alert")
   imageUrl      String?  @map("image_url")
+  // Combo/kit: não tem estoque próprio; vender baixa o estoque de cada componente (ComboItem).
+  isCombo       Boolean  @default(false) @map("is_combo")
   active        Boolean  @default(true)
   createdAt     DateTime @default(now()) @map("created_at")
 
@@ -133,6 +136,8 @@ model Product {
   preorderItems   PreorderItem[]
   stockMovements  StockMovement[]
   stockCountItems StockCountItem[]
+  comboItems      ComboItem[]      @relation("ComboParent")
+  usedInCombos    ComboItem[]      @relation("ComboComponent")
 
   @@map("products")
 }
@@ -184,35 +189,43 @@ model ClientPayment {
 }
 
 model Order {
-  id             Int           @id @default(autoincrement())
-  sellerId       Int           @map("seller_id")
-  clientId       Int?          @map("client_id")
-  totalAmount    Decimal       @map("total_amount") @db.Decimal(10, 2)
-  paymentMethod  PaymentMethod @map("payment_method")
-  paymentStatus  PaymentStatus @default(PAID) @map("payment_status")
-  kitchenStatus  KitchenStatus @default(PENDING) @map("kitchen_status")
-  fiscalStatus   FiscalStatus  @default(NOT_EMITTED) @map("fiscal_status")
-  fiscalType     FiscalType?   @map("fiscal_type")
-  fiscalKey      String?       @map("fiscal_key")
-  fiscalError    String?       @map("fiscal_error")
+  id                   Int           @id @default(autoincrement())
+  sellerId             Int           @map("seller_id")
+  clientId             Int?          @map("client_id")
+  totalAmount          Decimal       @map("total_amount") @db.Decimal(10, 2)
+  // Desconto no nível do pedido: totalAmount = subtotalAmount - discountAmount. subtotalAmount é
+  // nulo nos pedidos de antes do desconto existir (aí subtotal = total).
+  subtotalAmount       Decimal?      @map("subtotal_amount") @db.Decimal(10, 2)
+  discountAmount       Decimal       @default(0) @map("discount_amount") @db.Decimal(10, 2)
+  discountReason       String?       @map("discount_reason")
+  // Administrador que autorizou um desconto acima do limite (Config. > desconto máximo).
+  discountApprovedById Int?          @map("discount_approved_by_id")
+  paymentMethod        PaymentMethod @map("payment_method")
+  paymentStatus        PaymentStatus @default(PAID) @map("payment_status")
+  kitchenStatus        KitchenStatus @default(PENDING) @map("kitchen_status")
+  fiscalStatus         FiscalStatus  @default(NOT_EMITTED) @map("fiscal_status")
+  fiscalType           FiscalType?   @map("fiscal_type")
+  fiscalKey            String?       @map("fiscal_key")
+  fiscalError          String?       @map("fiscal_error")
   // Links pro documento no servidor da Focus NFe (DANFE em HTML e o XML da nota) — só preenchidos
   // quando AUTHORIZED. Precisam ser resolvidos com o host correto (homologação/produção) no
   // momento da emissão, já que a resposta da Focus só devolve o caminho relativo.
-  fiscalDanfeUrl String?       @map("fiscal_danfe_url")
-  fiscalXmlUrl   String?       @map("fiscal_xml_url")
+  fiscalDanfeUrl       String?       @map("fiscal_danfe_url")
+  fiscalXmlUrl         String?       @map("fiscal_xml_url")
   // Cancelamento: o pedido continua no banco (auditoria), mas sai de relatórios, caixa e cozinha.
   // Ao cancelar, o estoque volta e, se for fiado, o valor sai do saldo do cliente.
-  canceledAt     DateTime?     @map("canceled_at")
-  canceledById   Int?          @map("canceled_by_id")
-  cancelReason   String?       @map("cancel_reason")
-  createdAt      DateTime      @default(now()) @map("created_at")
+  canceledAt           DateTime?     @map("canceled_at")
+  canceledById         Int?          @map("canceled_by_id")
+  cancelReason         String?       @map("cancel_reason")
+  createdAt            DateTime      @default(now()) @map("created_at")
 
-  seller          User             @relation(fields: [sellerId], references: [id])
-  canceledBy      User?            @relation("OrderCanceledBy", fields: [canceledById], references: [id])
-  client          Client?          @relation(fields: [clientId], references: [id])
-  items           OrderItem[]
-  terminalPayment TerminalPayment?
-  stockMovements  StockMovement[]
+  seller             User             @relation(fields: [sellerId], references: [id])
+  canceledBy         User?            @relation("OrderCanceledBy", fields: [canceledById], references: [id])
+  discountApprovedBy User?            @relation("OrderDiscountApprovedBy", fields: [discountApprovedById], references: [id])
+  client             Client?          @relation(fields: [clientId], references: [id])
+  items              OrderItem[]
+  terminalPayment    TerminalPayment?
+  stockMovements     StockMovement[]
 
   @@map("orders")
 }
@@ -440,4 +453,28 @@ model StockCountItem {
   product    Product    @relation(fields: [productId], references: [id])
 
   @@map("stock_count_items")
+}
+
+// Componente de um combo: "Cento misto" = 50x Coxinha + 50x Kibe.
+model ComboItem {
+  id          Int @id @default(autoincrement())
+  comboId     Int @map("combo_id")
+  componentId Int @map("component_id")
+  quantity    Int
+
+  combo     Product @relation("ComboParent", fields: [comboId], references: [id], onDelete: Cascade)
+  component Product @relation("ComboComponent", fields: [componentId], references: [id])
+
+  @@unique([comboId, componentId])
+  @@map("combo_items")
+}
+
+// Configurações gerais da loja (linha única, id 1).
+model StoreSettings {
+  id                 Int      @id @default(autoincrement())
+  // Acima desse % de desconto, venda de vendedor precisa da autorização de um administrador.
+  maxDiscountPercent Decimal  @default(10) @map("max_discount_percent") @db.Decimal(5, 2)
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
 }

@@ -4,6 +4,7 @@ import * as clientRepository from "../repositories/client.repository.js";
 import * as terminalPaymentRepository from "../repositories/terminalPayment.repository.js";
 import { TERMINAL_PAYMENT_METHODS, resolvePaymentMethod } from "../payments/paymentMethod.js";
 import { parseId, parseOptionalRange, parsePage } from "./filters.js";
+import * as storeSettingsService from "./storeSettings.service.js";
 
 const ALL_PAYMENT_METHODS = ["CASH", "DEBIT", "CREDIT", "PIX", "TAB"];
 const KITCHEN_STATUSES = ["PENDING", "PREPARING", "READY"];
@@ -142,7 +143,48 @@ export async function cancelOrder(id, { userId, reason }) {
   return orderRepository.cancel(order.id, { canceledById: userId, cancelReason: trimmedReason });
 }
 
-export async function createOrder({ sellerId, paymentMethod, clientId, items, terminalPaymentId }) {
+function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+// Desconto no pedido: valor em R$ (o PDV converte % pra R$), motivo obrigatório e, acima do limite
+// configurado, autorização de um administrador (o próprio, se quem vende é admin).
+async function resolveDiscount({ discount, subtotal, sellerId, sellerRole, approvalToken }) {
+  const discountAmount = round2(Number(discount?.amount) || 0);
+  if (discountAmount === 0) return { discountAmount: 0, discountReason: null, discountApprovedById: null };
+  if (discountAmount < 0 || discountAmount > subtotal) {
+    throw new Error("Desconto inválido: precisa estar entre zero e o subtotal do pedido.");
+  }
+  const discountReason = discount?.reason?.trim();
+  if (!discountReason) {
+    throw new Error("Informe o motivo do desconto.");
+  }
+
+  let discountApprovedById = null;
+  const { maxDiscountPercent } = await storeSettingsService.getSettings();
+  const percent = (discountAmount / subtotal) * 100;
+  if (percent > maxDiscountPercent + 0.001) {
+    discountApprovedById =
+      sellerRole === "ADMIN" ? sellerId : storeSettingsService.verifyDiscountApproval(approvalToken, discountAmount);
+    if (!discountApprovedById) {
+      throw new Error(
+        `Desconto de ${percent.toFixed(1)}% passa do limite de ${maxDiscountPercent}% — precisa da autorização de um administrador.`,
+      );
+    }
+  }
+  return { discountAmount, discountReason, discountApprovedById };
+}
+
+export async function createOrder({
+  sellerId,
+  sellerRole,
+  paymentMethod,
+  clientId,
+  items,
+  terminalPaymentId,
+  discount,
+  approvalToken,
+}) {
   if (!ALL_PAYMENT_METHODS.includes(paymentMethod)) {
     throw new Error("Forma de pagamento inválida.");
   }
@@ -152,28 +194,64 @@ export async function createOrder({ sellerId, paymentMethod, clientId, items, te
   }
 
   const resolvedItems = [];
-  let totalAmount = 0;
+  // O que sai do estoque: o próprio produto, ou os componentes quando é combo. Somado por produto
+  // pra conferir o estoque de uma vez (ex: coxinha avulsa + combo com coxinha no mesmo pedido).
+  const stockLines = [];
+  const needed = new Map();
+  const stockInfo = new Map();
+  let subtotal = 0;
 
   for (const item of items) {
+    const quantity = Number(item.quantity);
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error("Quantidade inválida.");
+    }
     const product = await productRepository.findById(Number(item.productId));
     if (!product || !product.active) {
       throw new Error(`Produto ${item.productId} não encontrado.`);
     }
-    if (product.stockQuantity < item.quantity) {
-      throw new Error(`Estoque insuficiente para ${product.name}.`);
+
+    if (product.isCombo) {
+      if (!product.comboItems?.length) {
+        throw new Error(`O combo ${product.name} está sem produtos cadastrados.`);
+      }
+      for (const comboItem of product.comboItems) {
+        const component = comboItem.component;
+        if (!component.active) {
+          throw new Error(`O combo ${product.name} tem um produto que foi desativado (${component.name}).`);
+        }
+        const componentQuantity = comboItem.quantity * quantity;
+        stockInfo.set(component.id, component);
+        needed.set(component.id, (needed.get(component.id) ?? 0) + componentQuantity);
+        stockLines.push({ productId: component.id, quantity: componentQuantity, reason: `Combo: ${product.name}` });
+      }
+    } else {
+      stockInfo.set(product.id, product);
+      needed.set(product.id, (needed.get(product.id) ?? 0) + quantity);
+      stockLines.push({ productId: product.id, quantity, reason: null });
     }
 
     const unitPrice = Number(product.price);
-    totalAmount += unitPrice * item.quantity;
-
-    resolvedItems.push({
-      productId: product.id,
-      quantity: item.quantity,
-      unitPrice,
-    });
+    subtotal += unitPrice * quantity;
+    resolvedItems.push({ productId: product.id, quantity, unitPrice });
   }
 
-  totalAmount = Math.round(totalAmount * 100) / 100;
+  for (const [productId, quantity] of needed) {
+    const product = stockInfo.get(productId);
+    if (product.stockQuantity < quantity) {
+      throw new Error(`Estoque insuficiente para ${product.name}.`);
+    }
+  }
+
+  subtotal = round2(subtotal);
+  const { discountAmount, discountReason, discountApprovedById } = await resolveDiscount({
+    discount,
+    subtotal,
+    sellerId,
+    sellerRole,
+    approvalToken,
+  });
+  const totalAmount = round2(subtotal - discountAmount);
 
   // Venda cobrada na maquininha: só entra com a cobrança aprovada, do mesmo valor e ainda não
   // usada em outra venda. A forma de pagamento gravada é a que o cliente usou no aparelho.
@@ -232,7 +310,12 @@ export async function createOrder({ sellerId, paymentMethod, clientId, items, te
     paymentMethod,
     paymentStatus,
     items: resolvedItems,
+    stockLines,
     totalAmount,
+    subtotalAmount: subtotal,
+    discountAmount,
+    discountReason,
+    discountApprovedById,
     terminalPaymentId: terminalPaymentId ? Number(terminalPaymentId) : null,
   });
 }

@@ -31,6 +31,9 @@ async function assertProductsExist(items) {
     if (!product || !product.active) {
       throw new Error(`Produto ${item.productId} não encontrado.`);
     }
+    if (product.isCombo) {
+      throw new Error(`"${product.name}" é um combo e não tem estoque próprio — lance os produtos que vão dentro dele.`);
+    }
   }
 }
 

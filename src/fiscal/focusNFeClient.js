@@ -1,4 +1,5 @@
 import axios from "axios";
+import { splitDiscount } from "./discount.js";
 
 const SANDBOX_BASE_URL = "https://homologacao.focusnfe.com.br";
 const PRODUCTION_BASE_URL = "https://api.focusnfe.com.br";
@@ -40,11 +41,15 @@ const PAYMENT_CODE = {
 // Monta os itens com o Grupo UB (IBS/CBS) já calculado — compartilhado entre NFC-e e NF-e, já
 // que a Reforma Tributária exige o mesmo grupo nos dois modelos (55 e 65).
 function buildItems(order, settings) {
+  const discounts = splitDiscount(order);
   return order.items.map((item, index) => {
     const valorBruto = Number(item.unitPrice) * item.quantity;
-    const cbsValor = round2((valorBruto * Number(settings.cbsRate)) / 100);
-    const ibsUfValor = round2((valorBruto * Number(settings.ibsUfRate)) / 100);
-    const ibsMunValor = round2((valorBruto * Number(settings.ibsMunRate)) / 100);
+    // Com desconto, o imposto incide sobre o valor que o cliente de fato pagou.
+    const valorDesconto = discounts[index];
+    const baseCalculo = round2(valorBruto - valorDesconto);
+    const cbsValor = round2((baseCalculo * Number(settings.cbsRate)) / 100);
+    const ibsUfValor = round2((baseCalculo * Number(settings.ibsUfRate)) / 100);
+    const ibsMunValor = round2((baseCalculo * Number(settings.ibsMunRate)) / 100);
 
     return {
       numero_item: index + 1,
@@ -59,12 +64,13 @@ function buildItems(order, settings) {
       quantidade_tributavel: item.quantity,
       valor_unitario_tributavel: Number(item.unitPrice),
       valor_bruto: valorBruto,
+      ...(valorDesconto > 0 ? { valor_desconto: valorDesconto } : {}),
       icms_origem: "0", // mercadoria nacional
       icms_situacao_tributaria: "102", // CSOSN — Simples Nacional, sem permissão de crédito
       // Grupo UB — IBS/CBS (Reforma Tributária)
       ibs_cbs_situacao_tributaria: settings.ibsCbsSituacaoTributaria,
       ibs_cbs_classificacao_tributaria: settings.ibsCbsClassificacaoTributaria,
-      ibs_cbs_base_calculo: valorBruto,
+      ibs_cbs_base_calculo: baseCalculo,
       cbs_aliquota: Number(settings.cbsRate),
       cbs_valor: cbsValor,
       ibs_uf_aliquota: Number(settings.ibsUfRate),
@@ -199,6 +205,7 @@ export async function emitNFe({ settings, order }, httpClient = axios, pollOptio
     cep_destinatario: onlyDigits(order.client.addressPostalCode),
     items,
     valor_produtos: round2(sum(items, "valor_bruto")),
+    ...(Number(order.discountAmount) > 0 ? { valor_desconto: Number(order.discountAmount) } : {}),
     valor_total: Number(order.totalAmount),
     // Totais do Grupo UB no nível do documento
     cbs_valor_total: round2(sum(items, "cbs_valor")),

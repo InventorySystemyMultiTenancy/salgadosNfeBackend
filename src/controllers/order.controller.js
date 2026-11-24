@@ -22,6 +22,9 @@ export async function create(req, res) {
   try {
     const order = await orderService.createOrder({
       sellerId: req.user.id,
+      sellerRole: req.user.role,
+      discount: req.body.discount,
+      approvalToken: req.body.approvalToken,
       paymentMethod: req.body.paymentMethod,
       clientId: req.body.clientId,
       items: req.body.items,

@@ -10,6 +10,7 @@ import cashRoutes from "./cash.routes.js";
 import reportRoutes from "./report.routes.js";
 import preorderRoutes from "./preorder.routes.js";
 import stockRoutes from "./stock.routes.js";
+import storeSettingsRoutes from "./storeSettings.routes.js";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use("/cash", cashRoutes);
 router.use("/reports", reportRoutes);
 router.use("/preorders", preorderRoutes);
 router.use("/stock", stockRoutes);
+router.use("/store-settings", storeSettingsRoutes);
 
 export default router;
